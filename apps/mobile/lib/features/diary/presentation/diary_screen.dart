@@ -21,8 +21,9 @@ class _State extends ConsumerState<DiaryScreen> {
         ref.read(databaseProvider).diaryFor(day),
       ]),
       builder: (_, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final profile = snapshot.data![0]! as Map<String, Object?>,
             entries = snapshot.data![1]! as List<DiaryEntry>;
         final total = entries.fold(0.0, (s, e) => s + e.energy),
@@ -157,7 +158,7 @@ class _State extends ConsumerState<DiaryScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<MealType>(
-                value: meal,
+                initialValue: meal,
                 items: MealType.values
                     .map((m) => DropdownMenuItem(value: m, child: Text(m.name)))
                     .toList(),
@@ -183,7 +184,7 @@ class _State extends ConsumerState<DiaryScreen> {
     if (save == true && grams != null && grams > 0) {
       await ref
           .read(databaseProvider)
-          .editEntry(e.id, grams: grams, meal: meal);
+          .editEntry(e.id, canonicalQuantity: grams, meal: meal);
       setState(() {});
     }
   }

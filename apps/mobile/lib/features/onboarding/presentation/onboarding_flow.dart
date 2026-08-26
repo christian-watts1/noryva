@@ -55,7 +55,7 @@ class _State extends ConsumerState<OnboardingFlow> {
       heightController.text = height?.toString() ?? '';
       weightController.text = weight?.toString() ?? '';
       goalWeightController.text = goalWeight?.toString() ?? '';
-      if (p['calorie_target'] != null)
+      if (p['calorie_target'] != null) {
         plan = EnergyPlan(
           bmr: p['bmr']! as double,
           maintenanceCalories: p['maintenance_calories']! as double,
@@ -67,6 +67,7 @@ class _State extends ConsumerState<OnboardingFlow> {
           wasClamped: p['target_clamped'] == 1,
           clampReason: p['clamp_reason'] as String?,
         );
+      }
     });
   }
 
@@ -167,9 +168,9 @@ class _State extends ConsumerState<OnboardingFlow> {
     }
   }
 
-  void _error(String message) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+  void _error(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: step == 0
@@ -251,7 +252,7 @@ class _State extends ConsumerState<OnboardingFlow> {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<CalculationSex>(
-          value: sex,
+          initialValue: sex,
           decoration: const InputDecoration(
             labelText: 'Sex used for energy calculation',
           ),
@@ -300,8 +301,10 @@ class _State extends ConsumerState<OnboardingFlow> {
         'low': 'Low activity — Mostly seated with limited regular exercise.',
         'light':
             'Light activity — Some walking or light exercise during the week.',
-        'moderate': 'Moderate activity — Regular movement or exercise several times a week.',
-        'high': 'High activity — A physically active lifestyle or frequent training.',
+        'moderate':
+            'Moderate activity — Regular movement or exercise several times a week.',
+        'high':
+            'High activity — A physically active lifestyle or frequent training.',
       }[v.name]!,
     ),
     4 => Column(
@@ -320,7 +323,7 @@ class _State extends ConsumerState<OnboardingFlow> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<double>(
-            value: rate,
+            initialValue: rate,
             decoration: const InputDecoration(labelText: 'Desired rate'),
             items: const [.25, .5, .75]
                 .map(
@@ -408,16 +411,26 @@ class _State extends ConsumerState<OnboardingFlow> {
         style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
       ),
       const SizedBox(height: 16),
-      ...values.map(
-        (v) => Card(
-          child: RadioListTile<T>(
-            value: v,
-            groupValue: selected,
-            onChanged: (x) => changed(x as T),
-            title: Text(label(v)),
+      ...values.map((v) {
+        final isSelected = v == selected;
+        return Semantics(
+          selected: isSelected,
+          button: true,
+          label: label(v),
+          child: Card(
+            child: ListTile(
+              minTileHeight: 56,
+              leading: Icon(
+                isSelected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(label(v)),
+              onTap: () => changed(v),
+            ),
           ),
-        ),
-      ),
+        );
+      }),
     ],
   );
 }

@@ -17,6 +17,14 @@ void main() {
     var db = await AppDatabase.open(file: file);
     final id = await db.ensureIdentity();
     await db.saveOnboarding(step: 2, goal: 'loseWeight');
+    await db.close();
+
+    db = await AppDatabase.open(file: file);
+    final incomplete = await db.profile();
+    expect(incomplete!['anonymous_user_id'], id);
+    expect(incomplete['onboarding_step'], 2);
+    expect(incomplete['goal'], 'loseWeight');
+    expect(incomplete['onboarding_completed'], 0);
     await db.savePlan(
       bmr: 1700,
       maintenance: 2200,
@@ -35,6 +43,9 @@ void main() {
     expect(p['goal'], 'loseWeight');
     expect(p['onboarding_completed'], 1);
     expect(p['calorie_target'], 1700);
+    expect(p['protein_target'], 120);
+    expect(p['carbohydrate_target'], 180);
+    expect(p['fat_target'], 55);
     await db.close();
   });
   test('diary create, edit, snapshots, delete and reset persist', () async {
@@ -42,7 +53,8 @@ void main() {
     final chicken = (await db.searchFoods('chicken')).single;
     await db.logFood(
       food: chicken,
-      grams: 150,
+      canonicalQuantity: 150,
+      servingDescription: '150 g',
       meal: MealType.lunch,
       loggedAt: DateTime.now(),
     );
@@ -51,7 +63,7 @@ void main() {
     var entries = await db.diaryFor(DateTime.now());
     expect(entries.single.energy, 247.5);
     final entryId = entries.single.id;
-    await db.editEntry(entryId, grams: 200, meal: MealType.dinner);
+    await db.editEntry(entryId, canonicalQuantity: 200, meal: MealType.dinner);
     await db.close();
     db = await AppDatabase.open(file: file);
     entries = await db.diaryFor(DateTime.now());
@@ -115,7 +127,8 @@ void main() {
       final chicken = (await db.searchFoods('chicken')).single;
       await db.logFood(
         food: chicken,
-        grams: 150,
+        canonicalQuantity: 150,
+        servingDescription: '150 g',
         meal: MealType.lunch,
         loggedAt: DateTime.now(),
       );
@@ -131,4 +144,68 @@ void main() {
       await db.close();
     },
   );
+
+  test('serving definitions persist for mass, units and volume', () async {
+    var db = await AppDatabase.open(file: file);
+    expect(
+      (await db.servingsForFood('chicken-breast')).map((item) => item.label),
+      contains('100 g'),
+    );
+    expect(
+      (await db.servingsForFood('egg')).map((item) => item.label),
+      containsAll(<String>['100 g', '1 large egg']),
+    );
+    await db.close();
+
+    db = await AppDatabase.open(file: file);
+    final milk = await db.servingsForFood('milk');
+    expect(
+      milk.map((item) => item.label),
+      containsAll(<String>['100 ml', '250 ml glass']),
+    );
+    expect(
+      milk.singleWhere((item) => item.id == 'milk-glass').canonicalQuantity,
+      250,
+    );
+    await db.close();
+  });
+
+  test('search is case insensitive and retains prefix ranking', () async {
+    final db = await AppDatabase.open(file: file);
+    for (final query in const ['chicken', 'Chicken', 'CHICKEN']) {
+      final results = await db.searchFoods(query);
+      expect(results.first.name, 'Chicken breast');
+    }
+    await db.close();
+  });
+
+  test('actual recent diary history is ranked after database reopen', () async {
+    var db = await AppDatabase.open(file: file);
+    final banana = (await db.searchFoods('banana')).single;
+    final chicken = (await db.searchFoods('chicken')).single;
+    await db.logFood(
+      food: banana,
+      canonicalQuantity: 118,
+      servingDescription: '1 medium banana',
+      meal: MealType.breakfast,
+      loggedAt: DateTime.now().subtract(const Duration(minutes: 2)),
+    );
+    await db.logFood(
+      food: chicken,
+      canonicalQuantity: 100,
+      servingDescription: '100 g',
+      meal: MealType.lunch,
+      loggedAt: DateTime.now(),
+    );
+    await db.close();
+
+    db = await AppDatabase.open(file: file);
+    final sections = await db.foodSearchSections();
+    expect(sections.recent.map((item) => item.name), <String>[
+      'Chicken breast',
+      'Banana',
+    ]);
+    expect((await db.searchFoods('')).first.name, 'Chicken breast');
+    await db.close();
+  });
 }

@@ -13,37 +13,35 @@ final routerProvider = Provider<GoRouter>(
   (ref) => GoRouter(
     initialLocation: '/launch',
     routes: [
-      GoRoute(path: '/launch', builder: (_, __) => const LaunchScreen()),
-      GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingFlow()),
+      GoRoute(path: '/launch', builder: (_, _) => const LaunchScreen()),
+      GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingFlow()),
       StatefulShellRoute.indexedStack(
-        builder: (_, __, shell) => MainShell(shell: shell),
+        builder: (_, _, shell) => MainShell(shell: shell),
         branches: [
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+              GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
             ],
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/diary', builder: (_, __) => const DiaryScreen()),
+              GoRoute(path: '/diary', builder: (_, _) => const DiaryScreen()),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/progress',
-                builder: (_, __) => const ProgressScreen(),
+                builder: (_, _) => const ProgressScreen(),
               ),
             ],
           ),
           StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/me', builder: (_, __) => const MeScreen()),
-            ],
+            routes: [GoRoute(path: '/me', builder: (_, _) => const MeScreen())],
           ),
         ],
       ),
-      GoRoute(path: '/foods', builder: (_, __) => const FoodSearchScreen()),
+      GoRoute(path: '/foods', builder: (_, _) => const FoodSearchScreen()),
     ],
   ),
 );
@@ -55,17 +53,19 @@ class LaunchScreen extends ConsumerWidget {
       FutureBuilder<Map<String, Object?>?>(
         future: ref.read(databaseProvider).profile(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
             );
+          }
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted)
+            if (context.mounted) {
               context.go(
                 snapshot.data?['onboarding_completed'] == 1
                     ? '/home'
                     : '/onboarding',
               );
+            }
           });
           return const SizedBox.shrink();
         },
@@ -112,9 +112,9 @@ class MainShell extends StatelessWidget {
 class ProgressScreen extends StatelessWidget {
   const ProgressScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(
-    appBar: AppBar(title: Text('Progress')),
-    body: Padding(
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Progress')),
+    body: const Padding(
       padding: EdgeInsets.all(24),
       child: Text(
         'Detailed progress tools will arrive in a later phase. Your Phase 1 diary remains available locally.',

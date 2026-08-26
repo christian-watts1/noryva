@@ -18,7 +18,13 @@ flutter pub get
 flutter run
 ```
 
-No code generation is required. Validate with:
+The supported Drift schema uses generated code. Regenerate it after table changes with:
+
+```sh
+dart run build_runner build
+```
+
+Validate with:
 
 ```sh
 dart format --output=none --set-exit-if-changed .

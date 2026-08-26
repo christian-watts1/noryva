@@ -2,24 +2,125 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../features/diary/domain/diary_entry.dart';
-import '../../features/foods/domain/food.dart';
+import '../../features/diary/domain/diary_entry.dart' as domain_diary;
+import '../../features/foods/domain/food.dart' as domain_food;
+
+part 'app_database.g.dart';
 
 final databaseProvider = Provider<AppDatabase>(
   (_) => throw StateError('Database not initialised'),
 );
 const _uuid = Uuid();
 
-class AppDatabase {
-  AppDatabase._(this._executor);
-  static const schemaVersion = 1;
-  final QueryExecutor _executor;
+@DataClassName('ProfileRow')
+class Profiles extends Table {
+  TextColumn get anonymousUserId => text()();
+  TextColumn get deviceCreatedAt => text()();
+  BoolColumn get onboardingCompleted => boolean()();
+  IntColumn get onboardingStep => integer()();
+  TextColumn get goal => text().nullable()();
+  TextColumn get dateOfBirth => text().nullable()();
+  TextColumn get calculationSex => text().nullable()();
+  RealColumn get heightCm => real().nullable()();
+  RealColumn get weightKg => real().nullable()();
+  TextColumn get activity => text().nullable()();
+  RealColumn get goalWeightKg => real().nullable()();
+  RealColumn get rateKgWeek => real().nullable()();
+  RealColumn get bmr => real().nullable()();
+  RealColumn get maintenanceCalories => real().nullable()();
+  RealColumn get goalAdjustment => real().nullable()();
+  RealColumn get calorieTarget => real().nullable()();
+  RealColumn get proteinTarget => real().nullable()();
+  RealColumn get carbohydrateTarget => real().nullable()();
+  RealColumn get fatTarget => real().nullable()();
+  BoolColumn get targetClamped => boolean().nullable()();
+  TextColumn get clampReason => text().nullable()();
+
+  @override
+  String get tableName => 'profile';
+
+  @override
+  Set<Column<Object>> get primaryKey => {anonymousUserId};
+}
+
+@DataClassName('FoodRow')
+class Foods extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get brand => text().nullable()();
+  TextColumn get source => text()();
+  TextColumn get verificationStatus => text()();
+  TextColumn get barcode => text().nullable()();
+  RealColumn get energy => real()();
+  RealColumn get protein => real()();
+  RealColumn get carbohydrate => real()();
+  RealColumn get fat => real()();
+  RealColumn get fibre => real()();
+  RealColumn get sugar => real()();
+  RealColumn get salt => real()();
+  TextColumn get commonServing => text().nullable()();
+  RealColumn get commonServingGrams => real().nullable()();
+  BoolColumn get isCommon => boolean().withDefault(const Constant(false))();
+  TextColumn get createdAt => text()();
+  TextColumn get updatedAt => text()();
+  TextColumn get basisUnit => text().withDefault(const Constant('g'))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('FoodServingRow')
+class FoodServings extends Table {
+  TextColumn get id => text()();
+  TextColumn get foodId => text().references(Foods, #id)();
+  TextColumn get label => text()();
+  RealColumn get quantity => real()();
+  TextColumn get unit => text()();
+  RealColumn get canonicalQuantity => real()();
+  BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
+  IntColumn get displayOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('DiaryEntryRow')
+class DiaryEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get anonymousUserId => text()();
+  TextColumn get foodId => text().nullable().references(Foods, #id)();
+  TextColumn get foodNameSnapshot => text()();
+  TextColumn get brandSnapshot => text().nullable()();
+  TextColumn get mealType => text()();
+  RealColumn get quantityGrams => real()();
+  TextColumn get servingDescription => text()();
+  RealColumn get energySnapshot => real()();
+  RealColumn get proteinSnapshot => real()();
+  RealColumn get carbohydrateSnapshot => real()();
+  RealColumn get fatSnapshot => real()();
+  RealColumn get fibreSnapshot => real()();
+  RealColumn get sugarSnapshot => real()();
+  RealColumn get saltSnapshot => real()();
+  TextColumn get loggedAt => text()();
+  TextColumn get createdAt => text()();
+  TextColumn get updatedAt => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [Profiles, Foods, FoodServings, DiaryEntries])
+class AppDatabase extends _$AppDatabase {
+  AppDatabase._(super.executor);
+
+  @override
+  int get schemaVersion => 2;
 
   static Future<AppDatabase> open({File? file}) async {
     final resolved =
@@ -31,64 +132,54 @@ class AppDatabase {
           ),
         );
     final database = AppDatabase._(NativeDatabase(resolved));
-    await database._initialise();
+    await database.ensureIdentity();
     return database;
   }
 
   static Future<AppDatabase> memory() async {
     final database = AppDatabase._(NativeDatabase.memory());
-    await database._initialise();
+    await database.ensureIdentity();
     return database;
   }
 
-  Future<void> _initialise() async {
-    await _executor.ensureOpen(const _NoSchema());
-    final version =
-        (await _executor.runSelect(
-              'PRAGMA user_version',
-              const [],
-            )).first['user_version']
-            as int;
-    if (version == 0) {
-      await _createSchema();
-      await _executor.runCustom(
-        'PRAGMA user_version = $schemaVersion',
-        const [],
-      );
-    } else if (version != schemaVersion) {
-      throw StateError('Unsupported database schema version $version');
-    }
-    await _seedFoods();
-    await ensureIdentity();
-  }
-
-  Future<void> _createSchema() async {
-    for (final statement in _schemaStatements) {
-      await _executor.runCustom(statement, const []);
-    }
-  }
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (migrator) async {
+      await migrator.createAll();
+    },
+    onUpgrade: (migrator, from, to) async {
+      if (from == 1) {
+        await migrator.addColumn(foods, foods.basisUnit);
+        await migrator.createTable(foodServings);
+      }
+    },
+    beforeOpen: (details) async {
+      await customStatement('PRAGMA foreign_keys = ON');
+      await _seedFoods();
+      await _seedServings();
+    },
+  );
 
   Future<String> ensureIdentity() async {
-    final rows = await _executor.runSelect(
-      'SELECT anonymous_user_id FROM profile LIMIT 1',
-      const [],
-    );
-    if (rows.isNotEmpty) return rows.first['anonymous_user_id'] as String;
+    final row = await (select(profiles)..limit(1)).getSingleOrNull();
+    if (row != null) {
+      return row.anonymousUserId;
+    }
     final id = _uuid.v4();
-    final now = DateTime.now().toUtc().toIso8601String();
-    await _executor.runInsert(
-      'INSERT INTO profile (anonymous_user_id, device_created_at, onboarding_completed, onboarding_step) VALUES (?, ?, 0, 0)',
-      [id, now],
+    await into(profiles).insert(
+      ProfilesCompanion.insert(
+        anonymousUserId: id,
+        deviceCreatedAt: DateTime.now().toUtc().toIso8601String(),
+        onboardingCompleted: false,
+        onboardingStep: 0,
+      ),
     );
     return id;
   }
 
   Future<Map<String, Object?>?> profile() async {
-    final rows = await _executor.runSelect(
-      'SELECT * FROM profile LIMIT 1',
-      const [],
-    );
-    return rows.isEmpty ? null : rows.first;
+    final rows = await customSelect('SELECT * FROM profile LIMIT 1').get();
+    return rows.isEmpty ? null : rows.first.data;
   }
 
   Future<void> saveOnboarding({
@@ -102,8 +193,14 @@ class AppDatabase {
     double? goalWeightKg,
     double? rateKgWeek,
   }) async {
-    await _executor.runUpdate(
-      'UPDATE profile SET onboarding_step=?, goal=COALESCE(?,goal), date_of_birth=COALESCE(?,date_of_birth), calculation_sex=COALESCE(?,calculation_sex), height_cm=COALESCE(?,height_cm), weight_kg=COALESCE(?,weight_kg), activity=COALESCE(?,activity), goal_weight_kg=COALESCE(?,goal_weight_kg), rate_kg_week=COALESCE(?,rate_kg_week)',
+    await customStatement(
+      'UPDATE profile SET onboarding_step=?, goal=COALESCE(?,goal), '
+      'date_of_birth=COALESCE(?,date_of_birth), '
+      'calculation_sex=COALESCE(?,calculation_sex), '
+      'height_cm=COALESCE(?,height_cm), weight_kg=COALESCE(?,weight_kg), '
+      'activity=COALESCE(?,activity), '
+      'goal_weight_kg=COALESCE(?,goal_weight_kg), '
+      'rate_kg_week=COALESCE(?,rate_kg_week)',
       [
         step,
         goal,
@@ -129,8 +226,10 @@ class AppDatabase {
     required bool clamped,
     String? reason,
   }) async {
-    await _executor.runUpdate(
-      'UPDATE profile SET bmr=?, maintenance_calories=?, goal_adjustment=?, calorie_target=?, protein_target=?, carbohydrate_target=?, fat_target=?, target_clamped=?, clamp_reason=?, onboarding_step=5',
+    await customStatement(
+      'UPDATE profile SET bmr=?, maintenance_calories=?, goal_adjustment=?, '
+      'calorie_target=?, protein_target=?, carbohydrate_target=?, '
+      'fat_target=?, target_clamped=?, clamp_reason=?, onboarding_step=5',
       [
         bmr,
         maintenance,
@@ -146,91 +245,152 @@ class AppDatabase {
   }
 
   Future<void> completeOnboarding() async {
-    await _executor.runUpdate(
+    await customStatement(
       'UPDATE profile SET onboarding_completed=1, onboarding_step=6',
-      const [],
     );
   }
 
-  Future<List<Food>> searchFoods(String query) async {
-    final q = query.trim().toLowerCase();
-    final rows = await _executor.runSelect(
-      q.isEmpty ? 'SELECT * FROM foods ORDER BY is_common DESC, name LIMIT 20' : 'SELECT * FROM foods WHERE lower(name) LIKE ? OR lower(COALESCE(brand,\'\')) LIKE ? ORDER BY CASE WHEN lower(name)=? THEN 0 WHEN lower(name) LIKE ? THEN 1 ELSE 2 END, name LIMIT 50',
-      q.isEmpty ? const [] : ['%$q%', '%$q%', q, '$q%'],
-    );
-    return rows.map(_foodFromRow).toList();
+  Future<List<domain_food.Food>> searchFoods(String query) async {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      final sections = await foodSearchSections();
+      final seen = <String>{};
+      return [
+        ...sections.recent,
+        ...sections.common,
+      ].where((food) => seen.add(food.id)).toList();
+    }
+    final rows = await customSelect(
+      'SELECT * FROM foods WHERE lower(name) LIKE ? '
+      "OR lower(COALESCE(brand,'')) LIKE ? "
+      'ORDER BY CASE WHEN lower(name)=? THEN 0 '
+      'WHEN lower(name) LIKE ? THEN 1 ELSE 2 END, name LIMIT 50',
+      variables: [
+        Variable.withString('%$normalized%'),
+        Variable.withString('%$normalized%'),
+        Variable.withString(normalized),
+        Variable.withString('$normalized%'),
+      ],
+    ).get();
+    return rows.map((row) => _foodFromRow(row.data)).toList();
   }
 
-  Future<Food?> food(String id) async {
-    final rows = await _executor.runSelect('SELECT * FROM foods WHERE id=?', [
-      id,
-    ]);
-    return rows.isEmpty ? null : _foodFromRow(rows.first);
+  Future<domain_food.FoodSearchSections> foodSearchSections() async {
+    final recentRows = await customSelect(
+      'SELECT f.*, MAX(d.logged_at) AS last_logged FROM foods f '
+      'JOIN diary_entries d ON d.food_id=f.id GROUP BY f.id '
+      'ORDER BY last_logged DESC LIMIT 10',
+    ).get();
+    final commonRows = await customSelect(
+      'SELECT * FROM foods WHERE is_common=1 ORDER BY name LIMIT 20',
+    ).get();
+    return domain_food.FoodSearchSections(
+      recent: recentRows.map((row) => _foodFromRow(row.data)).toList(),
+      common: commonRows.map((row) => _foodFromRow(row.data)).toList(),
+    );
+  }
+
+  Future<domain_food.Food?> food(String id) async {
+    final row = await (select(
+      foods,
+    )..where((food) => food.id.equals(id))).getSingleOrNull();
+    return row == null ? null : _foodFromGenerated(row);
+  }
+
+  Future<List<domain_food.FoodServing>> servingsForFood(String foodId) async {
+    final rows =
+        await (select(foodServings)
+              ..where((serving) => serving.foodId.equals(foodId))
+              ..orderBy([(serving) => OrderingTerm.asc(serving.displayOrder)]))
+            .get();
+    return rows
+        .map(
+          (row) => domain_food.FoodServing(
+            id: row.id,
+            foodId: row.foodId,
+            label: row.label,
+            quantity: row.quantity,
+            unit: row.unit,
+            canonicalQuantity: row.canonicalQuantity,
+            isDefault: row.isDefault,
+          ),
+        )
+        .toList();
   }
 
   Future<void> logFood({
-    required Food food,
-    required double grams,
-    required MealType meal,
+    required domain_food.Food food,
+    required double canonicalQuantity,
+    required String servingDescription,
+    required domain_diary.MealType meal,
     required DateTime loggedAt,
   }) async {
-    if (grams <= 0 || grams > 5000) throw ArgumentError.value(grams, 'grams');
+    if (canonicalQuantity <= 0 || canonicalQuantity > 5000) {
+      throw ArgumentError.value(canonicalQuantity, 'canonicalQuantity');
+    }
     final userId = await ensureIdentity();
     final now = DateTime.now().toUtc().toIso8601String();
-    await _executor.runInsert(
-      'INSERT INTO diary_entries (id,anonymous_user_id,food_id,food_name_snapshot,brand_snapshot,meal_type,quantity_grams,serving_description,energy_snapshot,protein_snapshot,carbohydrate_snapshot,fat_snapshot,fibre_snapshot,sugar_snapshot,salt_snapshot,logged_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      [
-        _uuid.v4(),
-        userId,
-        food.id,
-        food.name,
-        food.brand,
-        meal.name,
-        grams,
-        '${grams.toStringAsFixed(0)}g',
-        food.scale(grams, food.energy),
-        food.scale(grams, food.protein),
-        food.scale(grams, food.carbohydrate),
-        food.scale(grams, food.fat),
-        food.scale(grams, food.fibre),
-        food.scale(grams, food.sugar),
-        food.scale(grams, food.salt),
-        loggedAt.toUtc().toIso8601String(),
-        now,
-        now,
-      ],
+    await into(diaryEntries).insert(
+      DiaryEntriesCompanion.insert(
+        id: _uuid.v4(),
+        anonymousUserId: userId,
+        foodId: Value(food.id),
+        foodNameSnapshot: food.name,
+        brandSnapshot: Value(food.brand),
+        mealType: meal.name,
+        quantityGrams: canonicalQuantity,
+        servingDescription: servingDescription,
+        energySnapshot: food.scale(canonicalQuantity, food.energy),
+        proteinSnapshot: food.scale(canonicalQuantity, food.protein),
+        carbohydrateSnapshot: food.scale(canonicalQuantity, food.carbohydrate),
+        fatSnapshot: food.scale(canonicalQuantity, food.fat),
+        fibreSnapshot: food.scale(canonicalQuantity, food.fibre),
+        sugarSnapshot: food.scale(canonicalQuantity, food.sugar),
+        saltSnapshot: food.scale(canonicalQuantity, food.salt),
+        loggedAt: loggedAt.toUtc().toIso8601String(),
+        createdAt: now,
+        updatedAt: now,
+      ),
     );
   }
 
-  Future<List<DiaryEntry>> diaryFor(DateTime day) async {
+  Future<List<domain_diary.DiaryEntry>> diaryFor(DateTime day) async {
     final start = DateTime(day.year, day.month, day.day).toUtc();
     final end = start.add(const Duration(days: 1));
-    final rows = await _executor.runSelect(
-      'SELECT * FROM diary_entries WHERE logged_at>=? AND logged_at<? ORDER BY logged_at',
-      [start.toIso8601String(), end.toIso8601String()],
-    );
-    return rows.map(_entryFromRow).toList();
+    final rows = await customSelect(
+      'SELECT * FROM diary_entries WHERE logged_at>=? AND logged_at<? '
+      'ORDER BY logged_at',
+      variables: [
+        Variable.withString(start.toIso8601String()),
+        Variable.withString(end.toIso8601String()),
+      ],
+    ).get();
+    return rows.map((row) => _entryFromRow(row.data)).toList();
   }
 
   Future<void> editEntry(
     String id, {
-    required double grams,
-    required MealType meal,
+    required double canonicalQuantity,
+    required domain_diary.MealType meal,
   }) async {
-    final rows = await _executor.runSelect(
-      'SELECT * FROM diary_entries WHERE id=?',
-      [id],
-    );
-    if (rows.isEmpty || grams <= 0)
+    final row = await (select(
+      diaryEntries,
+    )..where((entry) => entry.id.equals(id))).getSingleOrNull();
+    if (row == null || canonicalQuantity <= 0) {
       throw ArgumentError('Invalid diary entry update.');
-    final row = rows.first;
-    final old = row['quantity_grams'] as double;
-    final ratio = grams / old;
-    await _executor.runUpdate(
-      'UPDATE diary_entries SET quantity_grams=?, serving_description=?, meal_type=?, energy_snapshot=energy_snapshot*?, protein_snapshot=protein_snapshot*?, carbohydrate_snapshot=carbohydrate_snapshot*?, fat_snapshot=fat_snapshot*?, fibre_snapshot=fibre_snapshot*?, sugar_snapshot=sugar_snapshot*?, salt_snapshot=salt_snapshot*?, updated_at=? WHERE id=?',
+    }
+    final ratio = canonicalQuantity / row.quantityGrams;
+    await customStatement(
+      'UPDATE diary_entries SET quantity_grams=?, serving_description=?, '
+      'meal_type=?, energy_snapshot=energy_snapshot*?, '
+      'protein_snapshot=protein_snapshot*?, '
+      'carbohydrate_snapshot=carbohydrate_snapshot*?, '
+      'fat_snapshot=fat_snapshot*?, fibre_snapshot=fibre_snapshot*?, '
+      'sugar_snapshot=sugar_snapshot*?, salt_snapshot=salt_snapshot*?, '
+      'updated_at=? WHERE id=?',
       [
-        grams,
-        '${grams.toStringAsFixed(0)}g',
+        canonicalQuantity,
+        '${canonicalQuantity.toStringAsFixed(0)}g',
         meal.name,
         ratio,
         ratio,
@@ -246,135 +406,300 @@ class AppDatabase {
   }
 
   Future<void> deleteEntry(String id) async {
-    await _executor.runDelete('DELETE FROM diary_entries WHERE id=?', [id]);
+    await (delete(diaryEntries)..where((entry) => entry.id.equals(id))).go();
   }
 
   @visibleForTesting
   Future<void> updateFoodEnergyForTest(String id, double energy) async {
-    await _executor.runUpdate('UPDATE foods SET energy=? WHERE id=?', [
-      energy,
-      id,
-    ]);
+    await (update(foods)..where((food) => food.id.equals(id))).write(
+      FoodsCompanion(energy: Value(energy)),
+    );
   }
 
   Future<void> resetLocalData() async {
-    await _executor.runCustom('BEGIN IMMEDIATE', const []);
-    try {
-      await _executor.runDelete('DELETE FROM diary_entries', const []);
-      await _executor.runDelete('DELETE FROM profile', const []);
-      await _executor.runCustom('COMMIT', const []);
-    } catch (_) {
-      await _executor.runCustom('ROLLBACK', const []);
-      rethrow;
-    }
+    await transaction(() async {
+      await delete(diaryEntries).go();
+      await delete(profiles).go();
+    });
     await ensureIdentity();
   }
 
-  Future<void> close() => _executor.close();
+  Future<void> _seedFoods() async {
+    final count = await foods.count().getSingle();
+    if (count > 0) {
+      return;
+    }
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final row in _seedFoodRows) {
+      await into(foods).insert(
+        FoodsCompanion.insert(
+          id: row.id,
+          name: row.name,
+          source: 'noryva_demo_seed_v1',
+          verificationStatus: 'verified',
+          energy: row.energy,
+          protein: row.protein,
+          carbohydrate: row.carbohydrate,
+          fat: row.fat,
+          fibre: row.fibre,
+          sugar: row.sugar,
+          salt: row.salt,
+          isCommon: const Value(true),
+          createdAt: now,
+          updatedAt: now,
+          basisUnit: Value(row.basisUnit),
+        ),
+      );
+    }
+  }
+
+  Future<void> _seedServings() async {
+    final count = await foodServings.count().getSingle();
+    if (count > 0) {
+      return;
+    }
+    for (final row in _seedServingRows) {
+      await into(foodServings).insert(
+        FoodServingsCompanion.insert(
+          id: row.id,
+          foodId: row.foodId,
+          label: row.label,
+          quantity: row.quantity,
+          unit: row.unit,
+          canonicalQuantity: row.canonicalQuantity,
+          isDefault: Value(row.isDefault),
+          displayOrder: Value(row.order),
+        ),
+      );
+    }
+  }
 }
 
-class _NoSchema extends QueryExecutorUser {
-  const _NoSchema();
-  @override
-  int get schemaVersion => AppDatabase.schemaVersion;
-  @override
-  Future<void> beforeOpen(
-    QueryExecutor executor,
-    OpeningDetails details,
-  ) async {}
-}
+domain_food.Food _foodFromGenerated(FoodRow row) => domain_food.Food(
+  id: row.id,
+  name: row.name,
+  brand: row.brand,
+  source: row.source,
+  verificationStatus: row.verificationStatus,
+  energy: row.energy,
+  protein: row.protein,
+  carbohydrate: row.carbohydrate,
+  fat: row.fat,
+  fibre: row.fibre,
+  sugar: row.sugar,
+  salt: row.salt,
+  basisUnit: row.basisUnit,
+);
 
-Food _foodFromRow(Map<String, Object?> row) => Food(
+domain_food.Food _foodFromRow(Map<String, Object?> row) => domain_food.Food(
   id: row['id']! as String,
   name: row['name']! as String,
   brand: row['brand'] as String?,
   source: row['source']! as String,
   verificationStatus: row['verification_status']! as String,
-  energy: row['energy']! as double,
-  protein: row['protein']! as double,
-  carbohydrate: row['carbohydrate']! as double,
-  fat: row['fat']! as double,
-  fibre: row['fibre']! as double,
-  sugar: row['sugar']! as double,
-  salt: row['salt']! as double,
-  commonServing: row['common_serving'] as String?,
-  commonServingGrams: row['common_serving_grams'] as double?,
+  energy: (row['energy']! as num).toDouble(),
+  protein: (row['protein']! as num).toDouble(),
+  carbohydrate: (row['carbohydrate']! as num).toDouble(),
+  fat: (row['fat']! as num).toDouble(),
+  fibre: (row['fibre']! as num).toDouble(),
+  sugar: (row['sugar']! as num).toDouble(),
+  salt: (row['salt']! as num).toDouble(),
+  basisUnit: row['basis_unit']! as String,
 );
 
-DiaryEntry _entryFromRow(Map<String, Object?> r) => DiaryEntry(
-  id: r['id']! as String,
-  anonymousUserId: r['anonymous_user_id']! as String,
-  foodId: r['food_id'] as String?,
-  foodName: r['food_name_snapshot']! as String,
-  brand: r['brand_snapshot'] as String?,
-  meal: MealType.values.byName(r['meal_type']! as String),
-  quantityGrams: r['quantity_grams']! as double,
-  servingDescription: r['serving_description']! as String,
-  energy: r['energy_snapshot']! as double,
-  protein: r['protein_snapshot']! as double,
-  carbohydrate: r['carbohydrate_snapshot']! as double,
-  fat: r['fat_snapshot']! as double,
-  fibre: r['fibre_snapshot']! as double,
-  sugar: r['sugar_snapshot']! as double,
-  salt: r['salt_snapshot']! as double,
-  loggedAt: DateTime.parse(r['logged_at']! as String),
-);
+domain_diary.DiaryEntry _entryFromRow(Map<String, Object?> row) =>
+    domain_diary.DiaryEntry(
+      id: row['id']! as String,
+      anonymousUserId: row['anonymous_user_id']! as String,
+      foodId: row['food_id'] as String?,
+      foodName: row['food_name_snapshot']! as String,
+      brand: row['brand_snapshot'] as String?,
+      meal: domain_diary.MealType.values.byName(row['meal_type']! as String),
+      quantityGrams: (row['quantity_grams']! as num).toDouble(),
+      servingDescription: row['serving_description']! as String,
+      energy: (row['energy_snapshot']! as num).toDouble(),
+      protein: (row['protein_snapshot']! as num).toDouble(),
+      carbohydrate: (row['carbohydrate_snapshot']! as num).toDouble(),
+      fat: (row['fat_snapshot']! as num).toDouble(),
+      fibre: (row['fibre_snapshot']! as num).toDouble(),
+      sugar: (row['sugar_snapshot']! as num).toDouble(),
+      salt: (row['salt_snapshot']! as num).toDouble(),
+      loggedAt: DateTime.parse(row['logged_at']! as String),
+    );
 
-const _schemaStatements = [
-  '''CREATE TABLE profile (anonymous_user_id TEXT PRIMARY KEY, device_created_at TEXT NOT NULL, onboarding_completed INTEGER NOT NULL, onboarding_step INTEGER NOT NULL, goal TEXT, date_of_birth TEXT, calculation_sex TEXT, height_cm REAL, weight_kg REAL, activity TEXT, goal_weight_kg REAL, rate_kg_week REAL, bmr REAL, maintenance_calories REAL, goal_adjustment REAL, calorie_target REAL, protein_target REAL, carbohydrate_target REAL, fat_target REAL, target_clamped INTEGER, clamp_reason TEXT)''',
-  '''CREATE TABLE foods (id TEXT PRIMARY KEY, name TEXT NOT NULL, brand TEXT, source TEXT NOT NULL, verification_status TEXT NOT NULL, barcode TEXT, energy REAL NOT NULL, protein REAL NOT NULL, carbohydrate REAL NOT NULL, fat REAL NOT NULL, fibre REAL NOT NULL, sugar REAL NOT NULL, salt REAL NOT NULL, common_serving TEXT, common_serving_grams REAL, is_common INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
-  '''CREATE TABLE diary_entries (id TEXT PRIMARY KEY, anonymous_user_id TEXT NOT NULL, food_id TEXT REFERENCES foods(id) ON DELETE SET NULL, food_name_snapshot TEXT NOT NULL, brand_snapshot TEXT, meal_type TEXT NOT NULL, quantity_grams REAL NOT NULL, serving_description TEXT NOT NULL, energy_snapshot REAL NOT NULL, protein_snapshot REAL NOT NULL, carbohydrate_snapshot REAL NOT NULL, fat_snapshot REAL NOT NULL, fibre_snapshot REAL NOT NULL, sugar_snapshot REAL NOT NULL, salt_snapshot REAL NOT NULL, logged_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
-  'CREATE INDEX diary_logged_at ON diary_entries(logged_at)',
-  'CREATE INDEX foods_name ON foods(name)',
+class _SeedFood {
+  const _SeedFood(
+    this.id,
+    this.name,
+    this.energy,
+    this.protein,
+    this.carbohydrate,
+    this.fat,
+    this.fibre,
+    this.sugar,
+    this.salt, {
+    this.basisUnit = 'g',
+  });
+  final String id;
+  final String name;
+  final double energy;
+  final double protein;
+  final double carbohydrate;
+  final double fat;
+  final double fibre;
+  final double sugar;
+  final double salt;
+  final String basisUnit;
+}
+
+class _SeedServing {
+  const _SeedServing(
+    this.id,
+    this.foodId,
+    this.label,
+    this.quantity,
+    this.unit,
+    this.canonicalQuantity,
+    this.order, {
+    this.isDefault = false,
+  });
+  final String id;
+  final String foodId;
+  final String label;
+  final double quantity;
+  final String unit;
+  final double canonicalQuantity;
+  final int order;
+  final bool isDefault;
+}
+
+const _seedFoodRows = <_SeedFood>[
+  _SeedFood('chicken-breast', 'Chicken breast', 165, 31, 0, 3.6, 0, 0, .18),
+  _SeedFood('egg', 'Egg', 143, 12.6, .7, 9.5, 0, .4, .36),
+  _SeedFood('banana', 'Banana', 89, 1.1, 22.8, .3, 2.6, 12.2, 0),
+  _SeedFood('apple', 'Apple', 52, .3, 13.8, .2, 2.4, 10.4, 0),
+  _SeedFood('wholemeal-bread', 'Wholemeal bread', 247, 13, 41, 3.4, 7, 6, 1),
+  _SeedFood('white-rice', 'White rice, cooked', 130, 2.7, 28, .3, .4, .1, 0),
+  _SeedFood(
+    'basmati-rice',
+    'Basmati rice, cooked',
+    121,
+    3.5,
+    25.2,
+    .4,
+    .4,
+    0,
+    0,
+  ),
+  _SeedFood('broccoli', 'Broccoli', 34, 2.8, 6.6, .4, 2.6, 1.7, .08),
+  _SeedFood(
+    'milk',
+    'Semi-skimmed milk',
+    46,
+    3.6,
+    4.8,
+    1.7,
+    0,
+    4.8,
+    .1,
+    basisUnit: 'ml',
+  ),
+  _SeedFood('oats', 'Oats', 379, 13.2, 67.7, 6.5, 10.1, 1, .01),
+  _SeedFood('greek-yoghurt', 'Greek yoghurt', 97, 9, 3.9, 5, 0, 3.9, .09),
+  _SeedFood('cheddar', 'Cheddar cheese', 403, 24.9, 1.3, 33.1, 0, .5, 1.55),
+  _SeedFood('potato', 'Potato, boiled', 87, 1.9, 20.1, .1, 1.8, .9, .01),
+  _SeedFood('salmon', 'Salmon', 208, 20.4, 0, 13.4, 0, 0, .15),
+  _SeedFood('tuna', 'Tuna in spring water', 116, 25.5, 0, .8, 0, 0, .3),
+  _SeedFood('pasta', 'Pasta, cooked', 157, 5.8, 30.9, .9, 1.8, .6, .01),
+  _SeedFood('peanut-butter', 'Peanut butter', 588, 25, 20, 50, 6, 9, 1.1),
+  _SeedFood('olive-oil', 'Olive oil', 884, 0, 0, 100, 0, 0, 0),
+  _SeedFood('beef-mince', 'Lean beef mince', 215, 26, 0, 12, 0, 0, .18),
+  _SeedFood('tofu', 'Firm tofu', 144, 17, 2.8, 8.7, 2.3, .6, .02),
+  _SeedFood('lentils', 'Lentils, cooked', 116, 9, 20, .4, 7.9, 1.8, 0),
+  _SeedFood(
+    'chickpeas',
+    'Chickpeas, cooked',
+    164,
+    8.9,
+    27.4,
+    2.6,
+    7.6,
+    4.8,
+    .02,
+  ),
+  _SeedFood('avocado', 'Avocado', 160, 2, 8.5, 14.7, 6.7, .7, .02),
+  _SeedFood('orange', 'Orange', 47, .9, 11.8, .1, 2.4, 9.4, 0),
+  _SeedFood('strawberries', 'Strawberries', 32, .7, 7.7, .3, 2, 4.9, 0),
+  _SeedFood('blueberries', 'Blueberries', 57, .7, 14.5, .3, 2.4, 10, 0),
+  _SeedFood('spinach', 'Spinach', 23, 2.9, 3.6, .4, 2.2, .4, .2),
+  _SeedFood('sweet-potato', 'Sweet potato', 86, 1.6, 20.1, .1, 3, 4.2, .06),
+  _SeedFood(
+    'cottage-cheese',
+    'Cottage cheese',
+    98,
+    11.1,
+    3.4,
+    4.3,
+    0,
+    2.7,
+    .36,
+  ),
+  _SeedFood('quinoa', 'Quinoa, cooked', 120, 4.4, 21.3, 1.9, 2.8, .9, .01),
 ];
 
-extension on AppDatabase {
-  Future<void> _seedFoods() async {
-    final count =
-        (await _executor.runSelect(
-              'SELECT COUNT(*) AS count FROM foods',
-              const [],
-            )).first['count']
-            as int;
-    if (count > 0) return;
-    const rows = <List<Object>>[
-      ['chicken-breast', 'Chicken breast', 165, 31, 0, 3.6, 0, 0, 0.18],
-      ['egg', 'Egg', 143, 12.6, 0.7, 9.5, 0, 0.4, 0.36],
-      ['banana', 'Banana', 89, 1.1, 22.8, 0.3, 2.6, 12.2, 0],
-      ['apple', 'Apple', 52, 0.3, 13.8, 0.2, 2.4, 10.4, 0],
-      ['wholemeal-bread', 'Wholemeal bread', 247, 13, 41, 3.4, 7, 6, 1],
-      ['white-rice', 'White rice, cooked', 130, 2.7, 28, 0.3, 0.4, 0.1, 0],
-      ['basmati-rice', 'Basmati rice, cooked', 121, 3.5, 25.2, 0.4, 0.4, 0, 0],
-      ['broccoli', 'Broccoli', 34, 2.8, 6.6, 0.4, 2.6, 1.7, 0.08],
-      ['milk', 'Semi-skimmed milk', 46, 3.6, 4.8, 1.7, 0, 4.8, 0.1],
-      ['oats', 'Oats', 379, 13.2, 67.7, 6.5, 10.1, 1, 0.01],
-      ['greek-yoghurt', 'Greek yoghurt', 97, 9, 3.9, 5, 0, 3.9, 0.09],
-      ['cheddar', 'Cheddar cheese', 403, 24.9, 1.3, 33.1, 0, 0.5, 1.55],
-      ['potato', 'Potato, boiled', 87, 1.9, 20.1, 0.1, 1.8, 0.9, 0.01],
-      ['salmon', 'Salmon', 208, 20.4, 0, 13.4, 0, 0, 0.15],
-      ['tuna', 'Tuna in spring water', 116, 25.5, 0, 0.8, 0, 0, 0.3],
-      ['pasta', 'Pasta, cooked', 157, 5.8, 30.9, 0.9, 1.8, 0.6, 0.01],
-      ['peanut-butter', 'Peanut butter', 588, 25, 20, 50, 6, 9, 1.1],
-      ['olive-oil', 'Olive oil', 884, 0, 0, 100, 0, 0, 0],
-      ['beef-mince', 'Lean beef mince', 215, 26, 0, 12, 0, 0, 0.18],
-      ['tofu', 'Firm tofu', 144, 17, 2.8, 8.7, 2.3, 0.6, 0.02],
-      ['lentils', 'Lentils, cooked', 116, 9, 20, 0.4, 7.9, 1.8, 0],
-      ['chickpeas', 'Chickpeas, cooked', 164, 8.9, 27.4, 2.6, 7.6, 4.8, 0.02],
-      ['avocado', 'Avocado', 160, 2, 8.5, 14.7, 6.7, 0.7, 0.02],
-      ['orange', 'Orange', 47, 0.9, 11.8, 0.1, 2.4, 9.4, 0],
-      ['strawberries', 'Strawberries', 32, 0.7, 7.7, 0.3, 2, 4.9, 0],
-      ['blueberries', 'Blueberries', 57, 0.7, 14.5, 0.3, 2.4, 10, 0],
-      ['spinach', 'Spinach', 23, 2.9, 3.6, 0.4, 2.2, 0.4, 0.2],
-      ['sweet-potato', 'Sweet potato', 86, 1.6, 20.1, 0.1, 3, 4.2, 0.06],
-      ['cottage-cheese', 'Cottage cheese', 98, 11.1, 3.4, 4.3, 0, 2.7, 0.36],
-      ['quinoa', 'Quinoa, cooked', 120, 4.4, 21.3, 1.9, 2.8, 0.9, 0.01],
-    ];
-    final now = DateTime.now().toUtc().toIso8601String();
-    for (final r in rows) {
-      await _executor.runInsert(
-        'INSERT INTO foods (id,name,source,verification_status,energy,protein,carbohydrate,fat,fibre,sugar,salt,is_common,created_at,updated_at) VALUES (?,?,\'noryva_demo_seed_v1\',\'verified\',?,?,?,?,?,?,?,?,?,?)',
-        [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], 1, now, now],
-      );
-    }
-  }
-}
+const _seedServingRows = <_SeedServing>[
+  _SeedServing(
+    'chicken-100g',
+    'chicken-breast',
+    '100 g',
+    100,
+    'g',
+    100,
+    0,
+    isDefault: true,
+  ),
+  _SeedServing('egg-100g', 'egg', '100 g', 100, 'g', 100, 0),
+  _SeedServing(
+    'egg-large',
+    'egg',
+    '1 large egg',
+    1,
+    'egg',
+    60,
+    1,
+    isDefault: true,
+  ),
+  _SeedServing('banana-100g', 'banana', '100 g', 100, 'g', 100, 0),
+  _SeedServing(
+    'banana-medium',
+    'banana',
+    '1 medium banana',
+    1,
+    'banana',
+    118,
+    1,
+    isDefault: true,
+  ),
+  _SeedServing('bread-100g', 'wholemeal-bread', '100 g', 100, 'g', 100, 0),
+  _SeedServing(
+    'bread-slice',
+    'wholemeal-bread',
+    '1 slice',
+    1,
+    'slice',
+    38,
+    1,
+    isDefault: true,
+  ),
+  _SeedServing('milk-100ml', 'milk', '100 ml', 100, 'ml', 100, 0),
+  _SeedServing(
+    'milk-glass',
+    'milk',
+    '250 ml glass',
+    1,
+    'glass',
+    250,
+    1,
+    isDefault: true,
+  ),
+];

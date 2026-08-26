@@ -16,8 +16,9 @@ class HomeScreen extends ConsumerWidget {
         ref.read(databaseProvider).diaryFor(DateTime.now()),
       ]),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final profile = snapshot.data![0]! as Map<String, Object?>;
         final entries = snapshot.data![1]! as List<DiaryEntry>;
         final calories = entries.fold(0.0, (s, e) => s + e.energy),

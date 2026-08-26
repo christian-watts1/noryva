@@ -12,8 +12,7 @@ class Food {
     required this.fibre,
     required this.sugar,
     required this.salt,
-    this.commonServing,
-    this.commonServingGrams,
+    required this.basisUnit,
   });
   final String id;
   final String name;
@@ -27,8 +26,37 @@ class Food {
   final double fibre;
   final double sugar;
   final double salt;
-  final String? commonServing;
-  final double? commonServingGrams;
+  final String basisUnit;
 
-  double scale(double grams, double per100g) => per100g * grams / 100;
+  double scale(double canonicalQuantity, double per100) =>
+      per100 * canonicalQuantity / 100;
+}
+
+class FoodServing {
+  const FoodServing({
+    required this.id,
+    required this.foodId,
+    required this.label,
+    required this.quantity,
+    required this.unit,
+    required this.canonicalQuantity,
+    required this.isDefault,
+  });
+
+  final String id;
+  final String foodId;
+  final String label;
+  final double quantity;
+  final String unit;
+  final double canonicalQuantity;
+  final bool isDefault;
+
+  double canonicalFor(double servingCount) => canonicalQuantity * servingCount;
+}
+
+class FoodSearchSections {
+  const FoodSearchSections({required this.recent, required this.common});
+
+  final List<Food> recent;
+  final List<Food> common;
 }

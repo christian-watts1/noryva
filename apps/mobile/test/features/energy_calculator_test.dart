@@ -47,23 +47,27 @@ void main() {
   });
   test('each activity multiplier is exact', () {
     expect(
-      EnergyCalculator.calculate(input(activity: ActivityLevel.low))
-          .maintenanceCalories,
+      EnergyCalculator.calculate(
+        input(activity: ActivityLevel.low),
+      ).maintenanceCalories,
       2136,
     );
     expect(
-      EnergyCalculator.calculate(input(activity: ActivityLevel.light))
-          .maintenanceCalories,
+      EnergyCalculator.calculate(
+        input(activity: ActivityLevel.light),
+      ).maintenanceCalories,
       2447.5,
     );
     expect(
-      EnergyCalculator.calculate(input(activity: ActivityLevel.moderate))
-          .maintenanceCalories,
+      EnergyCalculator.calculate(
+        input(activity: ActivityLevel.moderate),
+      ).maintenanceCalories,
       2759,
     );
     expect(
-      EnergyCalculator.calculate(input(activity: ActivityLevel.high))
-          .maintenanceCalories,
+      EnergyCalculator.calculate(
+        input(activity: ActivityLevel.high),
+      ).maintenanceCalories,
       3070.5,
     );
   });
