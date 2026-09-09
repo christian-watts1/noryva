@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for module in network database api; do
+          for module in network database api identity; do
             terraform -chdir="terraform/modules/$module" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="terraform/modules/$module" test
           done

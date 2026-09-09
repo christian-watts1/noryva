@@ -20,6 +20,7 @@ void main() {
     await database.close();
     final legacy = sqlite.sqlite3.open(file.path);
     legacy.execute('ALTER TABLE profile DROP COLUMN body_draft');
+    legacy.execute('DROP TABLE workspace_identity');
     legacy.execute('PRAGMA user_version = 2');
     legacy.close();
     database = await AppDatabase.open(file: file);
@@ -33,7 +34,7 @@ void main() {
     await database.close();
   });
 
-  test('schema 1 migrates non-destructively to schema 3', () async {
+  test('schema 1 migrates non-destructively to schema 4', () async {
     final temp = Directory.systemTemp.createTempSync('noryva_migration_');
     final file = File('${temp.path}/legacy.sqlite');
     addTearDown(() => temp.deleteSync(recursive: true));
@@ -91,7 +92,7 @@ void main() {
       (await database.customSelect('PRAGMA user_version').get())
           .single
           .data['user_version'],
-      3,
+      4,
     );
     await database.close();
   });

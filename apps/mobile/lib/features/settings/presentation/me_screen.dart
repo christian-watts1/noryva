@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../design_system/tokens/tokens.dart';
+import '../../account/account_screen.dart';
 
 class MeScreen extends ConsumerWidget {
   const MeScreen({super.key});
@@ -36,7 +37,7 @@ class MeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Your profile, plan and diary are stored only on this device.',
+                  'Noryva keeps your profile, plan and diary locally and does not upload them.',
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -48,6 +49,16 @@ class MeScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 24),
+        ListTile(
+          leading: const Icon(Icons.account_circle_outlined),
+          title: const Text('Optional account'),
+          subtitle: const Text(
+            'No backup or sync is active. Keep using Noryva without an account.',
+          ),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+          ),
+        ),
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 4),
           leading: Icon(

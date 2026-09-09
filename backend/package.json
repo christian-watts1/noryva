@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@aws-sdk/rds-signer": "3.1127.0",
+    "jose": "^6.2.12",
     "pg": "8.23.0",
     "zod": "4.5.4"
   },

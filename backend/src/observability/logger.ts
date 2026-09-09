@@ -1,13 +1,21 @@
 import { z } from "zod";
+import { identityRoutes } from "../identity/service.js";
 // Runtime allow-list, including values. Merely dropping secret-named keys is insufficient.
 const recordSchema = z.object({
   severity: z.enum(["info", "error"]),
   correlationId: z.uuid(),
-  route: z.enum(["GET /health", "GET /ready", "unmatched"]),
+  route: z.enum([
+    "GET /health",
+    "GET /ready",
+    ...identityRoutes,
+    "POST /v1/auth/email",
+    "unmatched",
+  ]),
   status: z.number().int().min(100).max(599),
   latencyMs: z.number().int().min(0).max(900000),
   category: z.enum([
     "request_complete",
+    "unauthorized",
     "bad_request",
     "unsupported_media_type",
     "payload_too_large",

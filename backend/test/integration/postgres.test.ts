@@ -660,3 +660,278 @@ test("FORCE applies to migration-owner DML and revoked/inactive principals fail 
   );
   assert.equal((await app.query("SELECT * FROM diary_entries")).rows.length, 0);
 });
+
+test("Phase 2C real identity mapping, registration, revocation and protected RLS", async (t) => {
+  const { IdentityService } = await import("../../src/identity/service.js");
+  const { identitySchema } = await import("../../src/identity/verifier.js");
+  const { createHandler } = await import("../../src/app/handler.js");
+  const { readConfig } = await import("../../src/config/environment.js");
+  const { createLogger } = await import("../../src/observability/logger.js");
+  const second = {
+    name: "0002_identity_lifecycle.sql",
+    sql: await readFile(
+      new URL("../../migrations/0002_identity_lifecycle.sql", import.meta.url),
+      "utf8",
+    ),
+  };
+  const c = await owner.connect();
+  try {
+    await migrate(c, [migration, second]);
+  } finally {
+    c.release();
+  }
+  const identity = identitySchema.parse({
+    issuer: "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_test",
+    subject: randomUUID(),
+    clientId: "native",
+    issuedAt: Math.floor(Date.now() / 1000),
+    expiresAt: Math.floor(Date.now() / 1000) + 300,
+    authenticatedAt: Math.floor(Date.now() / 1000),
+  });
+  const identityB = { ...identity, subject: randomUUID() };
+  const pool = new pg.Pool({ ...config, user: "noryva_api", max: 4 });
+  const service = new IdentityService(pool, {
+    verifyBearerToken: async (token) => {
+      if (token === "valid") return identity;
+      if (token === "other") return identityB;
+      throw Error("invalid token");
+    },
+  });
+  const event = (
+    path: string,
+    method = "POST",
+    token = "valid",
+    device?: string,
+  ) =>
+    ({
+      version: "2.0",
+      routeKey: `${method} ${path}`,
+      rawPath: path,
+      rawQueryString: "",
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(device ? { "x-noryva-device": device } : {}),
+      },
+      requestContext: { http: { method, path } },
+      isBase64Encoded: false,
+    }) as unknown as import("aws-lambda").APIGatewayProxyEventV2;
+  let accountId = "",
+    deviceId = "";
+  const publicId = randomUUID();
+  try {
+    await t.test(
+      "concurrent first login is unique and idempotent",
+      async () => {
+        const results = (await Promise.all(
+          Array.from({ length: 4 }, () =>
+            service.execute(event("/v1/account/session"), {}),
+          ),
+        )) as { accountId: string }[];
+        accountId = results[0]!.accountId;
+        assert.ok(results.every((x) => x.accountId === accountId));
+        const different = (await service.execute(
+          event("/v1/account/session", "POST", "other"),
+          {},
+        )) as { accountId: string };
+        assert.notEqual(different.accountId, accountId);
+      },
+    );
+    await t.test(
+      "device registration is idempotent and overposting rejected",
+      async () => {
+        const input = {
+          devicePublicId: publicId,
+          platform: "android",
+          osMajor: 16,
+          appVersion: "1.0.0",
+        };
+        const result = (await service.execute(
+          event("/v1/devices/register"),
+          input,
+        )) as { deviceId: string };
+        deviceId = result.deviceId;
+        assert.deepEqual(
+          await service.execute(event("/v1/devices/register"), input),
+          result,
+        );
+        for (const key of [
+          "account_id",
+          "provider_subject",
+          "provider_issuer",
+          "email",
+          "dob",
+          "diary",
+        ])
+          await assert.rejects(
+            service.execute(event("/v1/devices/register"), {
+              ...input,
+              [key]: "sentinel",
+            }),
+          );
+      },
+    );
+    await t.test(
+      "active device succeeds; no token, missing, fabricated and cross-account device deny",
+      async () => {
+        assert.equal(
+          (
+            (await service.execute(
+              event("/v1/account", "GET", "valid", deviceId),
+              {},
+            )) as { accountId: string }
+          ).accountId,
+          accountId,
+        );
+        for (const ev of [
+          event("/v1/account", "GET", "bad", deviceId),
+          event("/v1/account", "GET"),
+          event("/v1/account", "GET", "valid", randomUUID()),
+          event("/v1/account", "GET", "other", deviceId),
+        ])
+          await assert.rejects(service.execute(ev, {}));
+        const noToken = event("/v1/account", "GET");
+        noToken.headers = {};
+        await assert.rejects(service.execute(noToken, {}));
+        await scoped(
+          verifiedPrincipalSchema.parse({ accountId, deviceId }),
+          async (db) => {
+            assert.equal(
+              (await db.query("SELECT * FROM accounts")).rows.length,
+              1,
+            );
+            assert.equal(
+              (await db.query("SELECT * FROM fitness_profiles")).rows.length,
+              0,
+            );
+          },
+        );
+      },
+    );
+    await t.test(
+      "identity logs contain no tokens, email, IDs or health fields",
+      async () => {
+        const lines: string[] = [];
+        const handler = createHandler({
+          config: () => readConfig({ APP_ENV: "test" }),
+          ready: async () => true,
+          identity: (e, i) => service.execute(e, i),
+          logger: createLogger((line) => lines.push(line)),
+        });
+        const ev = event("/v1/account/session");
+        ev.body = JSON.stringify({
+          email: "secret@example.invalid",
+          diary: "health-sentinel",
+        });
+        ev.headers["content-type"] = "application/json";
+        assert.equal((await handler(ev)).statusCode, 400);
+        assert.ok(!lines.join("").includes("secret"));
+        assert.ok(!lines.join("").includes("health-sentinel"));
+        assert.ok(!lines.join("").includes(accountId));
+        assert.ok(!lines.join("").includes("Bearer"));
+      },
+    );
+    await t.test(
+      "revocation denies still-valid JWT and registration bypass",
+      async () => {
+        await service.execute(
+          event(`/v1/devices/${deviceId}/revoke`, "POST", "valid", deviceId),
+          {},
+        );
+        await assert.rejects(
+          service.execute(event("/v1/account", "GET", "valid", deviceId), {}),
+        );
+        await assert.rejects(
+          service.execute(event("/v1/devices/register"), {
+            devicePublicId: randomUUID(),
+            platform: "android",
+            osMajor: 16,
+            appVersion: "1.0.0",
+          }),
+        );
+      },
+    );
+    await t.test(
+      "fresh authentication re-registers with a new internal device and keeps old revocation",
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+        const fresh = {
+          ...identity,
+          issuedAt: Math.floor(Date.now() / 1000),
+          authenticatedAt: Math.floor(Date.now() / 1000),
+        };
+        const freshService = new IdentityService(pool, {
+          verifyBearerToken: async () => fresh,
+        });
+        const registered = (await freshService.execute(
+          event("/v1/devices/register"),
+          {
+            devicePublicId: publicId,
+            platform: "android",
+            osMajor: 16,
+            appVersion: "1.0.0",
+          },
+        )) as { deviceId: string };
+        assert.notEqual(registered.deviceId, deviceId);
+        await assert.rejects(
+          freshService.execute(
+            event("/v1/account", "GET", "valid", deviceId),
+            {},
+          ),
+        );
+        assert.equal(
+          (
+            (await freshService.execute(
+              event("/v1/account", "GET", "valid", registered.deviceId),
+              {},
+            )) as { accountId: string }
+          ).accountId,
+          accountId,
+        );
+        await assert.rejects(
+          freshService.execute(
+            event(
+              `/v1/devices/${randomUUID()}/revoke`,
+              "POST",
+              "valid",
+              registered.deviceId,
+            ),
+            {},
+          ),
+        );
+        await assert.rejects(
+          app.query("UPDATE devices SET revoked_at=NULL"),
+          dbError("42501"),
+        );
+      },
+    );
+    await t.test(
+      "deleting and deleted identities are never silently recreated",
+      async () => {
+        const b = (await service.execute(
+          event("/v1/account/session", "POST", "other"),
+          {},
+        )) as { accountId: string };
+        for (const status of ["deleting", "deleted"]) {
+          await owner.query(
+            "UPDATE accounts SET status=$1,deleted_at=CASE WHEN $1='deleted' THEN now() ELSE NULL END WHERE id=$2",
+            [status, b.accountId],
+          );
+          await assert.rejects(
+            service.execute(event("/v1/account/session", "POST", "other"), {}),
+          );
+        }
+        assert.equal(
+          (
+            await owner.query(
+              "SELECT count(*)::int AS n FROM accounts WHERE provider_subject=$1",
+              [identityB.subject],
+            )
+          ).rows[0].n,
+          1,
+        );
+      },
+    );
+  } finally {
+    await pool.end();
+  }
+});

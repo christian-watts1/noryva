@@ -227,7 +227,7 @@ void main() {
           await tap(tester, 'Me');
           expect(
             find.text(
-              'Your profile, plan and diary are stored only on this device.',
+              'Noryva keeps your profile, plan and diary locally and does not upload them.',
             ),
             findsOneWidget,
           );

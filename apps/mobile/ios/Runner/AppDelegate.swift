@@ -12,5 +12,13 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NoryvaIdentityMetadata") {
+      FlutterMethodChannel(name: "noryva/identity_metadata", binaryMessenger: registrar.messenger())
+        .setMethodCallHandler { call, result in
+          guard call.method == "get" else { result(FlutterMethodNotImplemented); return }
+          result(["osMajor": ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+                  "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"])
+        }
+    }
   }
 }

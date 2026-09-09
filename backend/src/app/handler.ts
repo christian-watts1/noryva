@@ -1,3 +1,4 @@
+import { identityRoute } from "../identity/service.js";
 import { randomUUID } from "node:crypto";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { Config } from "../config/environment.js";
@@ -9,6 +10,10 @@ export interface Dependencies {
   config: () => Config;
   ready: () => Promise<boolean>;
   logger?: Logger;
+  identity?: (
+    event: APIGatewayProxyEventV2,
+    input: unknown,
+  ) => Promise<Record<string, unknown>>;
 }
 export function createHandler(deps: Dependencies) {
   const log = deps.logger ?? createLogger();
@@ -20,7 +25,8 @@ export function createHandler(deps: Dependencies) {
     const route =
       requested === "GET /health" || requested === "GET /ready"
         ? requested
-        : "unmatched";
+        : (identityRoute(event.requestContext.http.method, event.rawPath) ??
+          "unmatched");
     let status = 200;
     let category: "request_complete" | ReturnType<typeof safeError>["code"] =
       "request_complete";
@@ -28,6 +34,14 @@ export function createHandler(deps: Dependencies) {
       const config = deps.config();
       const input = parseJson(event, config.MAX_BODY_BYTES);
       if (route === "unmatched") throw new AppError("not_found");
+      if (route !== "GET /health" && route !== "GET /ready") {
+        if (!deps.identity) throw new AppError("unavailable");
+        return jsonResponse(
+          200,
+          await deps.identity(event, input),
+          correlationId,
+        );
+      }
       if (
         input !== undefined ||
         (event.body ?? "").length > 0 ||

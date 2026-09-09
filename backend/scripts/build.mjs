@@ -15,3 +15,18 @@ await build({
 execFileSync("zip", ["-j", "-q", "dist/lambda.zip", "dist/index.cjs"], {
   stdio: "inherit",
 });
+
+await build({
+  entryPoints: ["src/identity/authorizer.ts"],
+  outfile: "dist/authorizer.cjs",
+  bundle: true,
+  platform: "node",
+  target: "node24",
+  format: "cjs",
+  sourcemap: false,
+});
+execFileSync(
+  "zip",
+  ["-j", "-q", "dist/authorizer.zip", "dist/authorizer.cjs"],
+  { stdio: "inherit" },
+);

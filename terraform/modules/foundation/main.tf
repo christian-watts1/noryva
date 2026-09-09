@@ -26,6 +26,7 @@ module "database" {
   instance_class = "db.t4g.small"
 }
 module "api" {
+  identity      = var.enable_identity ? { issuer = module.identity[0].issuer, client_id = module.identity[0].client_id } : null
   source        = "../api"
   name          = local.name
   environment   = var.environment
@@ -41,4 +42,20 @@ output "database_host" { value = var.enable_database ? module.database[0].host :
 output "master_secret_arn" {
   value     = var.enable_database ? module.database[0].master_secret_arn : null
   sensitive = true
+}
+
+variable "enable_identity" {
+  type    = bool
+  default = false
+}
+variable "identity_email_source_arn" {
+  type    = string
+  default = null
+}
+module "identity" {
+  email_source_arn = var.identity_email_source_arn
+  count            = var.enable_identity ? 1 : 0
+  source           = "../identity"
+  name             = local.name
+  production       = var.environment == "production"
 }

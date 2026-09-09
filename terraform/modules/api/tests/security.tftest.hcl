@@ -43,3 +43,26 @@ run "database_api" {
     error_message = "API must not acquire administrator or secret permissions."
   }
 }
+run "protected_identity" {
+  command = plan
+  variables {
+    identity = { issuer = "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_test", client_id = "native" }
+  }
+  assert {
+    condition     = length(aws_apigatewayv2_route.identity) == 4 && alltrue([for r in aws_apigatewayv2_route.identity : r.authorization_type == "CUSTOM"])
+    error_message = "Every identity route requires cryptographic authorization."
+  }
+  assert {
+    condition     = aws_apigatewayv2_authorizer.identity[0].authorizer_result_ttl_in_seconds == 0 && length(aws_lambda_function.authorizer[0].vpc_config) == 0
+    error_message = "Do not cache identity decisions or add NAT for JWKS."
+  }
+}
+
+run "bounded_email_exchange" {
+  command = plan
+  variables { identity = { issuer = "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_test", client_id = "native" } }
+  assert {
+    condition     = length(aws_apigatewayv2_route.email) == 1 && aws_apigatewayv2_route.email[0].route_key == "POST /v1/auth/email" && length(aws_lambda_function.email[0].vpc_config) == 0 && aws_lambda_function.email[0].reserved_concurrent_executions == 2
+    error_message = "OTP exchange must stay bounded and avoid NAT/database permissions."
+  }
+}

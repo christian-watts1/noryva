@@ -30,3 +30,7 @@ Claims atomically select a due pending row with `FOR UPDATE SKIP LOCKED`, increm
 Use `withAccountTransaction` for the current safe execution boundary. Its account sync gate intentionally serializes same-account operations; the claim primitive also supports multiple already-scoped worker connections. No global dispatcher, cross-account worker bypass, EventBridge change, external effect or long-running transaction has been added. External actions must eventually execute outside the short claim transaction and be idempotent: database leases do not provide exactly-once external side effects. Workers for deletion of inactive accounts will need a separately reviewed restricted service context in the privacy phase; an interactive principal is intentionally rejected once its account/device is inactive.
 
 See `backend/migrations/README.md` for roles, transaction rules and the disposable PostgreSQL command. Phase 2C may later implement approved optional identity and device lifecycle integration; it must not implicitly enable fitness uploads, analytics or AWS deployment.
+
+## Phase 2C update
+
+See [the Phase 2C identity design](../../../docs/phase-2c-identity.md) for migration 0002, narrow identity-mapping functions, revoked-device handling and the centralized authorization boundary. The earlier sections describe the accepted Phase 2B baseline; the API now has optional identity-only routes. No health upload or sync routes exist. Migration 0002 removes direct application device INSERT/UPDATE and grants fixed registration/revocation functions instead.

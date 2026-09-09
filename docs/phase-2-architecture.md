@@ -1,5 +1,7 @@
 # Noryva Phase 2A — architecture and security design
 
+> **Phase 2C implementation:** See [optional identity and account safety](phase-2c-identity.md) for the code-only identity foundation, native email-OTP compatibility adjustment, device revocation and workspace attachment rules. No AWS deployment or Phase 2D sync is authorised by that implementation.
+
 > **9 September 2026 founder review:** The [Phase 2B validation report](phase-2b-validation.md) supersedes this proposal's REST-first decision and permanent staging budget/topology assumptions. HTTP API is selected for the foundation; staging is local-first with cloud database infrastructure disabled by default. The age-inference finding below remains unchanged. No AWS resource changes or automatic Phase 2C progression are authorised.
 
 **Status:** design proposal; no Phase 2 implementation authorised by this document.  

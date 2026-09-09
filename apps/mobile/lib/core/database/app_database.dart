@@ -121,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   static Future<AppDatabase> open({File? file}) async {
     final resolved =
@@ -147,6 +147,7 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async {
       await migrator.createAll();
+      await _createWorkspaceIdentity();
     },
     onUpgrade: (migrator, from, to) async {
       if (from == 1) {
@@ -156,6 +157,7 @@ class AppDatabase extends _$AppDatabase {
       if (from < 3) {
         await migrator.addColumn(profiles, profiles.bodyDraft);
       }
+      if (from < 4) await _createWorkspaceIdentity();
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -163,6 +165,38 @@ class AppDatabase extends _$AppDatabase {
       await _seedServings();
     },
   );
+
+  Future<void> _createWorkspaceIdentity() => customStatement(
+    'CREATE TABLE workspace_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1), account_id TEXT NOT NULL, device_public_id TEXT NOT NULL)',
+  );
+
+  Future<({String accountId, String devicePublicId})?>
+  workspaceIdentity() async {
+    final row = await customSelect(
+      'SELECT account_id, device_public_id FROM workspace_identity WHERE singleton=1',
+    ).getSingleOrNull();
+    if (row == null) return null;
+    return (
+      accountId: row.read<String>('account_id'),
+      devicePublicId: row.read<String>('device_public_id'),
+    );
+  }
+
+  Future<void> attachWorkspace(
+    String accountId,
+    String devicePublicId,
+  ) => transaction(() async {
+    final existing = await workspaceIdentity();
+    if (existing != null && existing.accountId != accountId) {
+      throw StateError('workspace_conflict');
+    }
+    if (existing == null) {
+      await customStatement(
+        'INSERT INTO workspace_identity(singleton,account_id,device_public_id) VALUES(1,?,?)',
+        [accountId, devicePublicId],
+      );
+    }
+  });
 
   Future<String> ensureIdentity() async {
     final row = await (select(profiles)..limit(1)).getSingleOrNull();

@@ -1,4 +1,5 @@
 export type ErrorCode =
+  | "unauthorized"
   | "bad_request"
   | "unsupported_media_type"
   | "payload_too_large"
@@ -6,6 +7,7 @@ export type ErrorCode =
   | "unavailable"
   | "internal_error";
 const status: Record<ErrorCode, number> = {
+  unauthorized: 401,
   bad_request: 400,
   unsupported_media_type: 415,
   payload_too_large: 413,

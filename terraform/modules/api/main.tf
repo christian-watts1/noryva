@@ -54,7 +54,7 @@ resource "aws_lambda_function" "api" {
   timeout                        = 10
   reserved_concurrent_executions = 2
   environment {
-    variables = merge({ APP_ENV = var.environment, DB_MODE = var.database == null ? "disabled" : "iam", MAX_BODY_BYTES = "16384" }, var.database == null ? {} : {
+    variables = merge(var.identity == null ? {} : { AUTH_ISSUER = var.identity.issuer, AUTH_CLIENT_ID = var.identity.client_id }, { APP_ENV = var.environment, DB_MODE = var.database == null ? "disabled" : "iam", MAX_BODY_BYTES = "16384" }, var.database == null ? {} : {
       DB_HOST = var.database.host, DB_PORT = "5432", DB_NAME = "noryva", DB_USER = "noryva_api", DB_CA_FILE = "/var/runtime/ca-cert.pem"
     })
   }
