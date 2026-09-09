@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../design_system/tokens/tokens.dart';
 import '../../diary/domain/diary_entry.dart';
 import '../domain/food.dart';
 
@@ -21,7 +22,7 @@ class _FoodSearchState extends ConsumerState<FoodSearchScreen> {
     body: Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(NoryvaSpace.md),
           child: SearchBar(
             hintText: 'Search local foods',
             leading: const Icon(Icons.search),
@@ -68,26 +69,57 @@ class _FoodSearchState extends ConsumerState<FoodSearchScreen> {
     },
   );
 
-  Widget _foodTile(Food food) => ListTile(
-    title: Text(food.name),
-    subtitle: Text(
-      '${food.brand ?? 'Noryva demo data'} • ${food.verificationStatus}',
+  Widget _foodTile(Food food) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    child: Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(NoryvaRadius.card),
+        child: Padding(
+          padding: const EdgeInsets.all(NoryvaSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(food.name, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(
+                '${food.brand ?? 'Noryva demo data'} · ${food.verificationStatus}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 20,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    '${food.energy.round()} kcal',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text(
+                    '${food.protein.toStringAsFixed(1)}g protein',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Text(
+                    'per 100 ${food.basisUnit}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        onTap: () async {
+          final logged = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => FoodDetailScreen(food: food)),
+          );
+          if (!mounted) {
+            return;
+          }
+          if (logged == true) {
+            Navigator.of(context).pop(true);
+          }
+        },
+      ),
     ),
-    trailing: Text(
-      '${food.energy.round()} kcal\n${food.protein.toStringAsFixed(1)}g protein',
-      textAlign: TextAlign.end,
-    ),
-    onTap: () async {
-      final logged = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => FoodDetailScreen(food: food)),
-      );
-      if (!mounted) {
-        return;
-      }
-      if (logged == true) {
-        Navigator.of(context).pop(true);
-      }
-    },
   );
 }
 
@@ -183,7 +215,7 @@ class _FoodDetailState extends ConsumerState<FoodDetailScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(food.name)),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(NoryvaSpace.lg),
         children: [
           Text(
             food.brand ?? 'Noryva development seed',

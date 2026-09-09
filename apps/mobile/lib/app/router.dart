@@ -114,11 +114,44 @@ class ProgressScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Progress')),
-    body: const Padding(
-      padding: EdgeInsets.all(24),
-      child: Text(
-        'Detailed progress tools will arrive in a later phase. Your Phase 1 diary remains available locally.',
-      ),
+    body: ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer,
+                  child: Icon(
+                    Icons.insights_outlined,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'One day at a time',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Detailed progress features are planned for a later phase.',
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'For now, your diary keeps your daily food record together, locally on your device.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }

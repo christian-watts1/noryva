@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../design_system/components/nutrition_components.dart';
 import '../domain/diary_entry.dart';
 
 class DiaryScreen extends ConsumerStatefulWidget {
@@ -29,7 +31,7 @@ class _State extends ConsumerState<DiaryScreen> {
         final total = entries.fold(0.0, (s, e) => s + e.energy),
             target = profile['calorie_target']! as double;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 48),
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -41,7 +43,13 @@ class _State extends ConsumerState<DiaryScreen> {
                   ),
                   icon: const Icon(Icons.chevron_left),
                 ),
-                Text('${day.day}/${day.month}/${day.year}'),
+                Expanded(
+                  child: Text(
+                    DateFormat('d MMM yyyy', 'en_US').format(day),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
                 IconButton(
                   tooltip: 'Next day',
                   onPressed: () =>
@@ -50,15 +58,41 @@ class _State extends ConsumerState<DiaryScreen> {
                 ),
               ],
             ),
-            Text(
-              '${total.round()} / ${target.round()} kcal',
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '${(target - total).clamp(0, double.infinity).round()} remaining',
-            ),
-            Text(
-              'Protein ${entries.fold(0.0, (s, e) => s + e.protein).round()}g  •  Carbs ${entries.fold(0.0, (s, e) => s + e.carbohydrate).round()}g  •  Fat ${entries.fold(0.0, (s, e) => s + e.fat).round()}g',
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${total.round()} / ${target.round()} kcal',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${(target - total).clamp(0, double.infinity).round()} remaining',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const Divider(),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        Text(
+                          'Protein ${entries.fold(0.0, (s, e) => s + e.protein).round()}g',
+                        ),
+                        Text(
+                          'Carbs ${entries.fold(0.0, (s, e) => s + e.carbohydrate).round()}g',
+                        ),
+                        Text(
+                          'Fat ${entries.fold(0.0, (s, e) => s + e.fat).round()}g',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             ...MealType.values.expand(
@@ -71,47 +105,16 @@ class _State extends ConsumerState<DiaryScreen> {
       },
     ),
   );
-  Widget _group(MealType meal, List<DiaryEntry> entries) => Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                meal == MealType.snack
-                    ? 'Snacks'
-                    : meal.name[0].toUpperCase() + meal.name.substring(1),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text('${entries.fold(0.0, (s, e) => s + e.energy).round()} kcal'),
-            ],
-          ),
-          ...entries.map(
-            (e) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(e.foodName),
-              subtitle: Text(e.servingDescription),
-              trailing: PopupMenuButton<String>(
-                onSelected: (action) =>
-                    action == 'delete' ? _delete(e) : _edit(e),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'edit',
-                    child: Text('Edit quantity or meal'),
-                  ),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+  Widget _group(MealType meal, List<DiaryEntry> entries) => MealCard(
+    meal: meal,
+    entries: entries,
+    actions: (e) => PopupMenuButton<String>(
+      tooltip: 'Options for ${e.foodName}',
+      onSelected: (action) => action == 'delete' ? _delete(e) : _edit(e),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'edit', child: Text('Edit quantity or meal')),
+        PopupMenuItem(value: 'delete', child: Text('Delete')),
+      ],
     ),
   );
   Future<void> _delete(DiaryEntry e) async {

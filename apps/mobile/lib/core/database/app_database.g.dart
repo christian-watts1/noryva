@@ -55,6 +55,17 @@ class $ProfilesTable extends Profiles
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _bodyDraftMeta = const VerificationMeta(
+    'bodyDraft',
+  );
+  @override
+  late final GeneratedColumn<String> bodyDraft = GeneratedColumn<String>(
+    'body_draft',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _goalMeta = const VerificationMeta('goal');
   @override
   late final GeneratedColumn<String> goal = GeneratedColumn<String>(
@@ -247,6 +258,7 @@ class $ProfilesTable extends Profiles
     deviceCreatedAt,
     onboardingCompleted,
     onboardingStep,
+    bodyDraft,
     goal,
     dateOfBirth,
     calculationSex,
@@ -320,6 +332,12 @@ class $ProfilesTable extends Profiles
       );
     } else if (isInserting) {
       context.missing(_onboardingStepMeta);
+    }
+    if (data.containsKey('body_draft')) {
+      context.handle(
+        _bodyDraftMeta,
+        bodyDraft.isAcceptableOrUnknown(data['body_draft']!, _bodyDraftMeta),
+      );
     }
     if (data.containsKey('goal')) {
       context.handle(
@@ -481,6 +499,10 @@ class $ProfilesTable extends Profiles
         DriftSqlType.int,
         data['${effectivePrefix}onboarding_step'],
       )!,
+      bodyDraft: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body_draft'],
+      ),
       goal: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}goal'],
@@ -563,6 +585,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
   final String deviceCreatedAt;
   final bool onboardingCompleted;
   final int onboardingStep;
+  final String? bodyDraft;
   final String? goal;
   final String? dateOfBirth;
   final String? calculationSex;
@@ -585,6 +608,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
     required this.deviceCreatedAt,
     required this.onboardingCompleted,
     required this.onboardingStep,
+    this.bodyDraft,
     this.goal,
     this.dateOfBirth,
     this.calculationSex,
@@ -610,6 +634,9 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
     map['device_created_at'] = Variable<String>(deviceCreatedAt);
     map['onboarding_completed'] = Variable<bool>(onboardingCompleted);
     map['onboarding_step'] = Variable<int>(onboardingStep);
+    if (!nullToAbsent || bodyDraft != null) {
+      map['body_draft'] = Variable<String>(bodyDraft);
+    }
     if (!nullToAbsent || goal != null) {
       map['goal'] = Variable<String>(goal);
     }
@@ -670,6 +697,9 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
       deviceCreatedAt: Value(deviceCreatedAt),
       onboardingCompleted: Value(onboardingCompleted),
       onboardingStep: Value(onboardingStep),
+      bodyDraft: bodyDraft == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bodyDraft),
       goal: goal == null && nullToAbsent ? const Value.absent() : Value(goal),
       dateOfBirth: dateOfBirth == null && nullToAbsent
           ? const Value.absent()
@@ -732,6 +762,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
         json['onboardingCompleted'],
       ),
       onboardingStep: serializer.fromJson<int>(json['onboardingStep']),
+      bodyDraft: serializer.fromJson<String?>(json['bodyDraft']),
       goal: serializer.fromJson<String?>(json['goal']),
       dateOfBirth: serializer.fromJson<String?>(json['dateOfBirth']),
       calculationSex: serializer.fromJson<String?>(json['calculationSex']),
@@ -763,6 +794,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
       'deviceCreatedAt': serializer.toJson<String>(deviceCreatedAt),
       'onboardingCompleted': serializer.toJson<bool>(onboardingCompleted),
       'onboardingStep': serializer.toJson<int>(onboardingStep),
+      'bodyDraft': serializer.toJson<String?>(bodyDraft),
       'goal': serializer.toJson<String?>(goal),
       'dateOfBirth': serializer.toJson<String?>(dateOfBirth),
       'calculationSex': serializer.toJson<String?>(calculationSex),
@@ -788,6 +820,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
     String? deviceCreatedAt,
     bool? onboardingCompleted,
     int? onboardingStep,
+    Value<String?> bodyDraft = const Value.absent(),
     Value<String?> goal = const Value.absent(),
     Value<String?> dateOfBirth = const Value.absent(),
     Value<String?> calculationSex = const Value.absent(),
@@ -810,6 +843,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
     deviceCreatedAt: deviceCreatedAt ?? this.deviceCreatedAt,
     onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
     onboardingStep: onboardingStep ?? this.onboardingStep,
+    bodyDraft: bodyDraft.present ? bodyDraft.value : this.bodyDraft,
     goal: goal.present ? goal.value : this.goal,
     dateOfBirth: dateOfBirth.present ? dateOfBirth.value : this.dateOfBirth,
     calculationSex: calculationSex.present
@@ -856,6 +890,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
       onboardingStep: data.onboardingStep.present
           ? data.onboardingStep.value
           : this.onboardingStep,
+      bodyDraft: data.bodyDraft.present ? data.bodyDraft.value : this.bodyDraft,
       goal: data.goal.present ? data.goal.value : this.goal,
       dateOfBirth: data.dateOfBirth.present
           ? data.dateOfBirth.value
@@ -905,6 +940,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
           ..write('deviceCreatedAt: $deviceCreatedAt, ')
           ..write('onboardingCompleted: $onboardingCompleted, ')
           ..write('onboardingStep: $onboardingStep, ')
+          ..write('bodyDraft: $bodyDraft, ')
           ..write('goal: $goal, ')
           ..write('dateOfBirth: $dateOfBirth, ')
           ..write('calculationSex: $calculationSex, ')
@@ -932,6 +968,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
     deviceCreatedAt,
     onboardingCompleted,
     onboardingStep,
+    bodyDraft,
     goal,
     dateOfBirth,
     calculationSex,
@@ -958,6 +995,7 @@ class ProfileRow extends DataClass implements Insertable<ProfileRow> {
           other.deviceCreatedAt == this.deviceCreatedAt &&
           other.onboardingCompleted == this.onboardingCompleted &&
           other.onboardingStep == this.onboardingStep &&
+          other.bodyDraft == this.bodyDraft &&
           other.goal == this.goal &&
           other.dateOfBirth == this.dateOfBirth &&
           other.calculationSex == this.calculationSex &&
@@ -982,6 +1020,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
   final Value<String> deviceCreatedAt;
   final Value<bool> onboardingCompleted;
   final Value<int> onboardingStep;
+  final Value<String?> bodyDraft;
   final Value<String?> goal;
   final Value<String?> dateOfBirth;
   final Value<String?> calculationSex;
@@ -1005,6 +1044,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
     this.deviceCreatedAt = const Value.absent(),
     this.onboardingCompleted = const Value.absent(),
     this.onboardingStep = const Value.absent(),
+    this.bodyDraft = const Value.absent(),
     this.goal = const Value.absent(),
     this.dateOfBirth = const Value.absent(),
     this.calculationSex = const Value.absent(),
@@ -1029,6 +1069,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
     required String deviceCreatedAt,
     required bool onboardingCompleted,
     required int onboardingStep,
+    this.bodyDraft = const Value.absent(),
     this.goal = const Value.absent(),
     this.dateOfBirth = const Value.absent(),
     this.calculationSex = const Value.absent(),
@@ -1056,6 +1097,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
     Expression<String>? deviceCreatedAt,
     Expression<bool>? onboardingCompleted,
     Expression<int>? onboardingStep,
+    Expression<String>? bodyDraft,
     Expression<String>? goal,
     Expression<String>? dateOfBirth,
     Expression<String>? calculationSex,
@@ -1081,6 +1123,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
       if (onboardingCompleted != null)
         'onboarding_completed': onboardingCompleted,
       if (onboardingStep != null) 'onboarding_step': onboardingStep,
+      if (bodyDraft != null) 'body_draft': bodyDraft,
       if (goal != null) 'goal': goal,
       if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
       if (calculationSex != null) 'calculation_sex': calculationSex,
@@ -1108,6 +1151,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
     Value<String>? deviceCreatedAt,
     Value<bool>? onboardingCompleted,
     Value<int>? onboardingStep,
+    Value<String?>? bodyDraft,
     Value<String?>? goal,
     Value<String?>? dateOfBirth,
     Value<String?>? calculationSex,
@@ -1132,6 +1176,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
       deviceCreatedAt: deviceCreatedAt ?? this.deviceCreatedAt,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       onboardingStep: onboardingStep ?? this.onboardingStep,
+      bodyDraft: bodyDraft ?? this.bodyDraft,
       goal: goal ?? this.goal,
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       calculationSex: calculationSex ?? this.calculationSex,
@@ -1167,6 +1212,9 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
     }
     if (onboardingStep.present) {
       map['onboarding_step'] = Variable<int>(onboardingStep.value);
+    }
+    if (bodyDraft.present) {
+      map['body_draft'] = Variable<String>(bodyDraft.value);
     }
     if (goal.present) {
       map['goal'] = Variable<String>(goal.value);
@@ -1232,6 +1280,7 @@ class ProfilesCompanion extends UpdateCompanion<ProfileRow> {
           ..write('deviceCreatedAt: $deviceCreatedAt, ')
           ..write('onboardingCompleted: $onboardingCompleted, ')
           ..write('onboardingStep: $onboardingStep, ')
+          ..write('bodyDraft: $bodyDraft, ')
           ..write('goal: $goal, ')
           ..write('dateOfBirth: $dateOfBirth, ')
           ..write('calculationSex: $calculationSex, ')
@@ -3918,6 +3967,7 @@ typedef $$ProfilesTableCreateCompanionBuilder =
       required String deviceCreatedAt,
       required bool onboardingCompleted,
       required int onboardingStep,
+      Value<String?> bodyDraft,
       Value<String?> goal,
       Value<String?> dateOfBirth,
       Value<String?> calculationSex,
@@ -3943,6 +3993,7 @@ typedef $$ProfilesTableUpdateCompanionBuilder =
       Value<String> deviceCreatedAt,
       Value<bool> onboardingCompleted,
       Value<int> onboardingStep,
+      Value<String?> bodyDraft,
       Value<String?> goal,
       Value<String?> dateOfBirth,
       Value<String?> calculationSex,
@@ -3989,6 +4040,11 @@ class $$ProfilesTableFilterComposer
 
   ColumnFilters<int> get onboardingStep => $composableBuilder(
     column: $table.onboardingStep,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bodyDraft => $composableBuilder(
+    column: $table.bodyDraft,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4107,6 +4163,11 @@ class $$ProfilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get bodyDraft => $composableBuilder(
+    column: $table.bodyDraft,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get goal => $composableBuilder(
     column: $table.goal,
     builder: (column) => ColumnOrderings(column),
@@ -4222,6 +4283,9 @@ class $$ProfilesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get bodyDraft =>
+      $composableBuilder(column: $table.bodyDraft, builder: (column) => column);
+
   GeneratedColumn<String> get goal =>
       $composableBuilder(column: $table.goal, builder: (column) => column);
 
@@ -4331,6 +4395,7 @@ class $$ProfilesTableTableManager
                 Value<String> deviceCreatedAt = const Value.absent(),
                 Value<bool> onboardingCompleted = const Value.absent(),
                 Value<int> onboardingStep = const Value.absent(),
+                Value<String?> bodyDraft = const Value.absent(),
                 Value<String?> goal = const Value.absent(),
                 Value<String?> dateOfBirth = const Value.absent(),
                 Value<String?> calculationSex = const Value.absent(),
@@ -4354,6 +4419,7 @@ class $$ProfilesTableTableManager
                 deviceCreatedAt: deviceCreatedAt,
                 onboardingCompleted: onboardingCompleted,
                 onboardingStep: onboardingStep,
+                bodyDraft: bodyDraft,
                 goal: goal,
                 dateOfBirth: dateOfBirth,
                 calculationSex: calculationSex,
@@ -4379,6 +4445,7 @@ class $$ProfilesTableTableManager
                 required String deviceCreatedAt,
                 required bool onboardingCompleted,
                 required int onboardingStep,
+                Value<String?> bodyDraft = const Value.absent(),
                 Value<String?> goal = const Value.absent(),
                 Value<String?> dateOfBirth = const Value.absent(),
                 Value<String?> calculationSex = const Value.absent(),
@@ -4402,6 +4469,7 @@ class $$ProfilesTableTableManager
                 deviceCreatedAt: deviceCreatedAt,
                 onboardingCompleted: onboardingCompleted,
                 onboardingStep: onboardingStep,
+                bodyDraft: bodyDraft,
                 goal: goal,
                 dateOfBirth: dateOfBirth,
                 calculationSex: calculationSex,
@@ -4422,7 +4490,16 @@ class $$ProfilesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ProfilesTable, ProfileRow>(table),
+                  BaseReferences<_$AppDatabase, $ProfilesTable, ProfileRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -5031,8 +5108,10 @@ class $$FoodsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$FoodsTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$FoodsTable, FoodRow>(table),
+                  $$FoodsTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
@@ -5424,7 +5503,7 @@ class $$FoodServingsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$FoodServingsTable, FoodServingRow>(table),
                   $$FoodServingsTableReferences(db, table, e),
                 ),
               )
@@ -6012,7 +6091,7 @@ class $$DiaryEntriesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DiaryEntriesTable, DiaryEntryRow>(table),
                   $$DiaryEntriesTableReferences(db, table, e),
                 ),
               )

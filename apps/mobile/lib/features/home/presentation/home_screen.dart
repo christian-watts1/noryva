@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../design_system/components/nutrition_components.dart';
+import '../../../design_system/tokens/tokens.dart';
 import '../../diary/domain/diary_entry.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -35,58 +37,66 @@ class HomeScreen extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async => context.go('/home'),
           child: ListView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(NoryvaSpace.lg),
             children: [
+              Text(greeting, style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 8),
               Text(
-                greeting,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                'A little awareness, every day.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 24),
-              const Text('TODAY'),
-              Text(
-                '${calories.round()} / ${target.round()} kcal',
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '${(target - calories).clamp(0, double.infinity).round()} remaining',
-              ),
-              const SizedBox(height: 24),
-              _macro('Protein', protein, profile['protein_target']! as double),
-              _macro('Carbs', carbs, profile['carbohydrate_target']! as double),
-              _macro('Fat', fat, profile['fat_target']! as double),
-              const SizedBox(height: 24),
+              CalorieProgress(consumed: calories, target: target),
+              const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () => context.push('/foods'),
                 icon: const Icon(Icons.search),
                 label: const Text('Search food'),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Today's meals",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              ...entries.map(
-                (e) => ListTile(
-                  title: Text(e.foodName),
-                  subtitle: Text(e.meal.name),
-                  trailing: Text('${e.energy.round()} kcal'),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SectionTitle('Your macros'),
+                      const SizedBox(height: 8),
+                      MacroProgress(
+                        name: 'Protein',
+                        current: protein,
+                        target: profile['protein_target']! as double,
+                      ),
+                      MacroProgress(
+                        name: 'Carbs',
+                        current: carbs,
+                        target: profile['carbohydrate_target']! as double,
+                      ),
+                      MacroProgress(
+                        name: 'Fat',
+                        current: fat,
+                        target: profile['fat_target']! as double,
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              const SizedBox(height: 24),
+              const SectionTitle("Today's meals"),
+              const SizedBox(height: 16),
+              ...MealType.values.map(
+                (meal) => MealCard(
+                  meal: meal,
+                  entries: entries
+                      .where((entry) => entry.meal == meal)
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 32),
             ],
           ),
         );
       },
     ),
-  );
-  Widget _macro(String name, double value, double target) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    title: Text(name),
-    trailing: Text('${value.round()} / ${target.round()}g'),
   );
 }

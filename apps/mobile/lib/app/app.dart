@@ -11,6 +11,8 @@ class NoryvaApp extends ConsumerWidget {
     title: 'Noryva',
     debugShowCheckedModeBanner: false,
     theme: noryvaTheme(),
+    darkTheme: noryvaTheme(brightness: Brightness.dark),
+    themeMode: ThemeMode.system,
     routerConfig: ref.watch(routerProvider),
   );
 }

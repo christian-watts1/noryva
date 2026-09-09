@@ -63,6 +63,7 @@ void main() {
       expect(find.text('YOUR NORYVA PLAN'), findsOneWidget);
       expect(find.text('How was this calculated?'), findsOneWidget);
       await _tapText(tester, 'Start tracking');
+      await _revealText(tester, 'Search food');
       expect(find.text('Search food'), findsOneWidget);
 
       await _tapText(tester, 'Search food');
@@ -96,6 +97,7 @@ void main() {
       await _pumpApplication(tester, database);
 
       expect(find.text('Track less. Know more.'), findsNothing);
+      await _revealText(tester, 'Search food');
       expect(find.text('Search food'), findsOneWidget);
       await _tapText(tester, 'Diary');
       expect(find.text('Chicken breast'), findsOneWidget);
@@ -148,6 +150,7 @@ void main() {
     );
 
     await _pumpApplication(tester, database);
+    await _revealText(tester, 'Search food');
     expect(find.text('Search food'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await _tapText(tester, 'Search food');
@@ -181,5 +184,23 @@ Future<void> _tapText(
   await tester.ensureVisible(last ? finder.last : finder.first);
   await tester.pumpAndSettle();
   await tester.tap(last ? finder.last : finder.first);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _revealText(WidgetTester tester, String text) async {
+  final finder = find.text(text);
+  if (finder.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      finder,
+      250,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView).first,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+  }
+  await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
 }

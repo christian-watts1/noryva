@@ -24,6 +24,7 @@ class Profiles extends Table {
   TextColumn get deviceCreatedAt => text()();
   BoolColumn get onboardingCompleted => boolean()();
   IntColumn get onboardingStep => integer()();
+  TextColumn get bodyDraft => text().nullable()();
   TextColumn get goal => text().nullable()();
   TextColumn get dateOfBirth => text().nullable()();
   TextColumn get calculationSex => text().nullable()();
@@ -120,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   static Future<AppDatabase> open({File? file}) async {
     final resolved =
@@ -152,6 +153,9 @@ class AppDatabase extends _$AppDatabase {
         await migrator.addColumn(foods, foods.basisUnit);
         await migrator.createTable(foodServings);
       }
+      if (from < 3) {
+        await migrator.addColumn(profiles, profiles.bodyDraft);
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -180,6 +184,19 @@ class AppDatabase extends _$AppDatabase {
   Future<Map<String, Object?>?> profile() async {
     final rows = await customSelect('SELECT * FROM profile LIMIT 1').get();
     return rows.isEmpty ? null : rows.first.data;
+  }
+
+  Future<void> saveBodyDraft(
+    String draft, {
+    double? heightCm,
+    double? weightKg,
+    String? dateOfBirth,
+    String? sex,
+  }) async {
+    await customStatement(
+      'UPDATE profile SET body_draft=?, height_cm=?, weight_kg=?, date_of_birth=?, calculation_sex=?',
+      [draft, heightCm, weightKg, dateOfBirth, sex],
+    );
   }
 
   Future<void> saveOnboarding({

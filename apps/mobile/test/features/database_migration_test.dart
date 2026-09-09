@@ -5,7 +5,35 @@ import 'package:noryva_mobile/core/database/app_database.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 void main() {
-  test('schema 1 migrates non-destructively to serving schema 2', () async {
+  test('schema 2 migration preserves in-progress metric onboarding', () async {
+    final temp = Directory.systemTemp.createTempSync('noryva_v2_');
+    final file = File('${temp.path}/legacy.sqlite');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    var database = await AppDatabase.open(file: file);
+    await database.saveOnboarding(
+      step: 2,
+      heightCm: 180,
+      weightKg: 80,
+      dateOfBirth: '1990-01-02',
+    );
+    final id = (await database.profile())!['anonymous_user_id'];
+    await database.close();
+    final legacy = sqlite.sqlite3.open(file.path);
+    legacy.execute('ALTER TABLE profile DROP COLUMN body_draft');
+    legacy.execute('PRAGMA user_version = 2');
+    legacy.close();
+    database = await AppDatabase.open(file: file);
+    final profile = (await database.profile())!;
+    expect(profile['anonymous_user_id'], id);
+    expect(profile['onboarding_step'], 2);
+    expect(profile['height_cm'], 180);
+    expect(profile['weight_kg'], 80);
+    expect(profile['date_of_birth'], '1990-01-02');
+    expect(profile['body_draft'], isNull);
+    await database.close();
+  });
+
+  test('schema 1 migrates non-destructively to schema 3', () async {
     final temp = Directory.systemTemp.createTempSync('noryva_migration_');
     final file = File('${temp.path}/legacy.sqlite');
     addTearDown(() => temp.deleteSync(recursive: true));
@@ -63,7 +91,7 @@ void main() {
       (await database.customSelect('PRAGMA user_version').get())
           .single
           .data['user_version'],
-      2,
+      3,
     );
     await database.close();
   });
