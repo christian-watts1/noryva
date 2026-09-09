@@ -25,6 +25,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Disposable PostgreSQL 17 integration tests
+        run: npm run test:integration
+        env:
+          CONTAINER_ENGINE: docker
       - run: npm run build
       - run: npm run audit
   terraform:

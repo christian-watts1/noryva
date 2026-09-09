@@ -1,5 +1,7 @@
 # Phase 2B founder review and final validation report
 
+> Latest result: see the appended [Phase 2B remediation](#phase-2b-remediation--postgresql-ownership-contracts-and-jobs) section. The original scaffold-only findings below are retained as history.
+
 Reviewed 9 September 2026 against the existing working tree. **Scaffold checks pass; full Phase 2B acceptance is not established. Stop here.** No AWS resources were created or modified in this review, no live Terraform plan/apply or database bootstrap was executed, and Phase 2C was not started. Public AWS pricing/documentation reads are not account inventory or billing verification.
 
 This report supersedes Phase 2A's REST-first selection and standing staging cost assumptions. It does not approve deployment or claim the unfinished backend meets the complete Phase 2A acceptance criteria. Existing mobile/backend/Terraform work predates this review; this review changes the architecture cross-reference, this report, and the API mocked-test identity fixture only, plus local build output.
@@ -74,3 +76,48 @@ Initial sandbox restrictions prevented the test runner's local socket and Terraf
 Against the full Phase 2A section 20 definition of 2B, ownership/RLS schema, real local PostgreSQL constraint/two-user validation, domain contracts and the durable job skeleton remain absent (see `backend/migrations/README.md` and `backend/src/modules/README.md`). The current bootstrap grants no domain-table access, and mock migration tests do not demonstrate real PostgreSQL enforcement. A deployable account-specific plan and costed integration window also remain unverified. Record this as a validated **foundation scaffold**, not a completed functional backend or full Phase 2B acceptance.
 
 Founder review decisions are incorporated. Stop after this validation report; no automatic Phase 2C, cloud creation, authentication integration or health-data upload.
+
+## Phase 2B remediation — PostgreSQL ownership, contracts and jobs
+
+**Result: PASS for the explicitly authorised local Phase 2B remediation acceptance criteria.** This section supersedes the historical scaffold-only acceptance result above without erasing it. No Phase 2C implementation, mobile source edits, AWS account access or AWS resource changes occurred. Live infrastructure plans, IAM connectivity and deployment acceptance remain separate future work, not silently claimed as validated here.
+
+### Implemented foundation
+
+- `backend/migrations/0001_core_identity_and_sync.sql` creates six domain tables: accounts, devices, fitness_profiles, diary_entries, sync_state and jobs. The migration runner maintains its separate checksum ledger. Internal account UUIDs and issuer/subject uniqueness establish an identity mapping boundary without implementing authentication. No analytics, email or DOB columns were added.
+- All six tables enforce account ownership through ENABLE/FORCE RLS and USING/WITH CHECK policies. Missing context sees no rows; malformed context errors. Composite account/device foreign keys prevent cross-account associations. Snapshot updates must increment versions; soft deletion clears health payloads and rejects later resurrection updates.
+- `noryva_migrator` owns schema/migrations; `noryva_api` has explicit minimal domain DML and no ownership, superuser, BYPASSRLS, schema creation, temporary objects, role administration, ledger or TRUNCATE access. Real tests connect as the application role, not a superuser impersonating an application user. Owner DML is also tested under FORCE RLS.
+- Strict TypeScript/Zod schemas cover the internal verified-principal shape, cloud fitness profile, diary snapshot, versioned mutation envelopes, sync metadata, payload-free tombstones, device registration and job request/status. Client bodies cannot choose account ownership, accepted versions, job status or server timestamps. Unknown fitness fields, DOB, email, search and analytics over-posting are rejected.
+- `withAccountTransaction` uses one pooled connection, parameterized transaction-local context, the common sync-state lock and live account/device checks. It commits/rolls back, resets account context, and releases or discards the connection. No SQL values, health records or tokens are logged by these helpers.
+- The durable account-owned queue supports enqueue, atomic SKIP LOCKED claim, attempt fencing, completion, retry scheduling, terminal failure and expired-lease recovery. Error storage is an enum, not free text. There are no export/delete side effects, dispatcher, EventBridge resources or global worker privileges.
+
+### Actual validation results
+
+The local command is `cd backend && npm run test:integration` after dependency installation. The runner automatically starts official PostgreSQL major 17 in rootless Podman (or Docker), waits for TCP health, bounds test execution and removes the container/ephemeral storage. The tested image reported **PostgreSQL 17.11**. Container cleanup was inspected after execution. GitHub Actions uses the same disposable-container command with Docker and retains `permissions: contents: read`; it has no deployment credentials or permissions.
+
+| Required check | Actual result |
+|---|---|
+| `npm ci` | Passed, lockfile unchanged |
+| `npm run format:check`, lint and typecheck | Passed |
+| Unit tests | **24 passed** (18 existing plus 6 contract tests) |
+| Real PostgreSQL integration tests | **13 passed**, no skipped tests |
+| Backend build | Passed |
+| npm audit | Reported **0 vulnerabilities** at validation time |
+| Terraform recursive format | Passed |
+| Staging init without backend + validate | Passed |
+| Production init without backend + validate | Passed |
+| Existing mocked Terraform suites | **5 passed**: network 1, database 2, API 2 |
+| Mobile and Terraform source comparison | Unchanged |
+
+Integration evidence includes reciprocal A/B SELECT/UPDATE/DELETE denial, foreign-owner INSERT denial, crafted UUID predicates, cross-account device FK rejection, correct-owner visibility, missing/malformed context, role/DDL/RLS-bypass denial, owner FORCE enforcement, payload-clearing tombstones, stale-version/resurrection rejection, parameterized injection strings, same-backend-PID context cleanup after commit/rollback/session contamination, revoked/inactive principal rejection, real overlapping worker locks, retry timing, completion and terminal failures. Migration tests prove fresh installation, repeated runner idempotence, exact SHA-256 ledger, modified/missing history rejection, transactional DDL/ledger rollback and advisory-lock release.
+
+An initial harness file-path error was corrected before the passing PostgreSQL runs. No policy or validation was weakened to achieve the result. This is a source/acceptance review and dependency advisory check, not a full independent penetration test.
+
+### Remaining boundaries and security limits
+
+The historical missing local database, ownership, contracts and durable-job acceptance items are now complete. The architecture choices remain HTTP API/Lambda/PostgreSQL with database-disabled staging, no NAT/ALB/Proxy/interface endpoints and no deployment. No new routes or mobile flows were introduced.
+
+A principal schema validates UUID structure, not authentication. Future trusted server code must resolve account/device IDs from verified identity; mobile must never provide the RLS context. RLS does not contain a fully compromised application credential capable of arbitrary SQL and setting a different valid account UUID. The current helper rejects inactive accounts; a future privacy worker acting after account deactivation needs a separately reviewed restricted service context. Queue leases do not guarantee exactly-once external actions. Complete sync cursors, receipts, tombstone retention and rights processing remain later-phase work.
+
+The cloud remains server-readable, and excluding DOB does not prevent age inference from saved calculation inputs/BMR. Fitness text labels and snapshots are sensitive content and must not enter logs or analytics. These limitations are unchanged.
+
+**Phase 2B is complete for this authorised remediation scope. Stop.** Recommended Phase 2C scope, only after separate authorisation: optional Cognito/PKCE account and device lifecycle integration, verified principal mapping, recovery/revocation and offline acceptance. No health upload, analytics or AWS resource creation is authorised by this remediation result.

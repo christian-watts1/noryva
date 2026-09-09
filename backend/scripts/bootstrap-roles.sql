@@ -3,17 +3,19 @@
 -- Not a domain migration and never invoked by the API or ordinary CI.
 BEGIN;
 REVOKE ALL ON DATABASE noryva FROM PUBLIC;
-REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
 DO $$ BEGIN
  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'noryva_api') THEN
-  CREATE ROLE noryva_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+  CREATE ROLE noryva_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
  END IF;
  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'noryva_migrator') THEN
-  CREATE ROLE noryva_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+  CREATE ROLE noryva_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
  END IF;
 END $$;
 GRANT rds_iam TO noryva_api, noryva_migrator;
 GRANT CONNECT ON DATABASE noryva TO noryva_api, noryva_migrator;
-GRANT USAGE, CREATE ON SCHEMA public TO noryva_migrator;
--- No table access or schema creation for API in 2B. SELECT 1 needs neither.
+ALTER SCHEMA public OWNER TO noryva_migrator;
+GRANT USAGE ON SCHEMA public TO noryva_api;
+-- Migration 0001 grants explicit domain DML; API never owns schema/tables.
+-- Verify pre-existing roles have these attributes and no privileged memberships.
 COMMIT;

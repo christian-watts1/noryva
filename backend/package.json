@@ -14,7 +14,9 @@
     "test": "tsx --test test/*.test.ts",
     "build": "node scripts/build.mjs",
     "migrate": "tsx src/database/migrate.ts",
-    "audit": "npm audit --audit-level=high"
+    "audit": "npm audit --audit-level=high",
+    "test:integration": "bash scripts/test-postgres.sh",
+    "test:integration:run": "tsx --test test/integration/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/rds-signer": "3.1127.0",
