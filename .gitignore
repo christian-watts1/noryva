@@ -17,3 +17,14 @@ key.properties
 .vscode/
 *.iml
 .DS_Store
+
+# Backend and Terraform local artifacts/secrets
+node_modules/
+backend/dist/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+crash.log

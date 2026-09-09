@@ -1,5 +1,7 @@
 # Noryva Phase 2A — architecture and security design
 
+> **9 September 2026 founder review:** The [Phase 2B validation report](phase-2b-validation.md) supersedes this proposal's REST-first decision and permanent staging budget/topology assumptions. HTTP API is selected for the foundation; staging is local-first with cloud database infrastructure disabled by default. The age-inference finding below remains unchanged. No AWS resource changes or automatic Phase 2C progression are authorised.
+
 **Status:** design proposal; no Phase 2 implementation authorised by this document.  
 **Reviewed:** 6 September 2026. **Audience:** founder and future implementation/security reviewers.  
 **Scope:** optional accounts, backup/restore, multi-device sync, privacy controls and optional first-party analytics. No advertising, subscriptions, Health Connect, branded-food integration or changes to Phase 1 calculations.
